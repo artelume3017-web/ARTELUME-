@@ -1,0 +1,6 @@
+{
+  "name": "ARTÈ LUME — Architectural Lighting Quotation Builder",
+  "description": "Professional architectural lighting quotation builder, luminaire specification manager, BOQ scheduler, and catalog system.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,5 @@
+{
+  "summary":  "Complete User Authentication Script and Architecture specification covering Sign Up with email & password, Login, Logout, and secure credential storage via Firebase Authentication. Includes both a standalone Node.js/CLI script and React/TypeScript integration module without modifying live application code until user confirmation.",
+  "updatedAt":  "2026-11-01T01:21:38.817717351Z",
+  "userFacing":  true
+}

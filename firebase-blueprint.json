@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "BranchProfile": {
+      "title": "BranchProfile",
+      "description": "Per-branch branding, logo, 121 architectural color plate scheme, and bank details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "tagline": { "type": "string" },
+        "location": { "type": "string" },
+        "address": { "type": "string" },
+        "gstin": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "quotePrefix": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "theme": { "type": "object" },
+        "bankDetails": { "type": "object" }
+      },
+      "required": ["id", "name", "location", "quotePrefix", "theme", "bankDetails"]
+    },
+    "Company": {
+      "title": "Company",
+      "description": "Studio organization with multi-branch configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "tagline": { "type": "string" },
+        "location": { "type": "string" },
+        "address": { "type": "string" },
+        "gstin": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "quotePrefix": { "type": "string" },
+        "inviteCode": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "theme": { "type": "object" },
+        "bankDetails": { "type": "object" },
+        "branches": {
+          "type": "array",
+          "items": { "$ref": "#/entities/BranchProfile" }
+        }
+      },
+      "required": ["id", "name", "inviteCode", "ownerId"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with organization association and role",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "companyId": { "type": "string" },
+        "role": { "type": "string", "enum": ["owner", "admin", "staff"] }
+      },
+      "required": ["uid", "email", "companyId", "role"]
+    }
+  },
+  "firestore": {
+    "/companies/{companyId}": {
+      "schema": "#/entities/Company",
+      "description": "Company document storing studio settings and multi-branch profiles"
+    },
+    "/users/{userId}": {
+      "schema": "#/entities/UserProfile",
+      "description": "User profile documents"
+    }
+  }
+}

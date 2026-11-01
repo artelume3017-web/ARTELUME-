@@ -1,0 +1,5 @@
+{
+  "summary":  "Technical diagnosis and complete implementation script for bi-directional synchronization between Delivery Challan COD (Collected on Delivery) payments, Quotation payment history, and the Bank Passbook/Cash accounts ledger.",
+  "updatedAt":  "2026-11-01T01:42:47.715486313Z",
+  "userFacing":  true
+}
