@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../firebase/AuthContext';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface StudioAccountModalProps {
   isOpen: boolean;
@@ -293,6 +294,11 @@ export const StudioAccountModal: React.FC<StudioAccountModalProps> = ({
               </button>
             </form>
           )}
+
+          {/* Install Mobile & PC Application */}
+          <div className="pt-1">
+            <PWAInstallButton variant="sidebar" primaryColor="#7b3f22" accentColor="#df9c20" />
+          </div>
 
           {/* Device & Session Info */}
           <div className="text-[11px] text-[#8e7b70] bg-[#140c08] p-2.5 rounded-lg border border-[#3e271a] flex items-center justify-between">

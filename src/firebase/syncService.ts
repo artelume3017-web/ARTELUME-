@@ -9,8 +9,17 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from './config';
-import { LightingProduct, QuotationDocument, CustomerParty, BranchProfile, CompanyMember, AppRole, BankTransaction, BankAccount } from '../types';
-import { CURATED_FIXTURES } from '../data/fixtures';
+import {
+  LightingProduct,
+  QuotationDocument,
+  CustomerParty,
+  BranchProfile,
+  CompanyMember,
+  AppRole,
+  BankTransaction,
+  BankAccount,
+  DeliveryChallan
+} from '../types';
 
 // Helper to sanitize document keys for Firestore
 const sanitizeId = (str: string) => {
@@ -71,7 +80,7 @@ export const deleteCloudQuotation = async (companyId: string, quoteName: string)
 };
 
 /**
- * 2. PRODUCTS REAL-TIME SYNC & AUTO-SEED
+ * 2. PRODUCTS REAL-TIME SYNC (Zero unwanted auto-seeding)
  */
 export const subscribeToCompanyProducts = (
   companyId: string,
@@ -82,31 +91,16 @@ export const subscribeToCompanyProducts = (
   const colRef = collection(db, 'companies', companyId, 'products');
   return onSnapshot(
     colRef,
-    async snapshot => {
-      if (snapshot.empty) {
-        // Auto-seed default curated fixtures on first company initialization
-        try {
-          const batch = writeBatch(db);
-          CURATED_FIXTURES.forEach(f => {
-            const pRef = doc(db, 'companies', companyId, 'products', f.id);
-            batch.set(pRef, f);
-          });
-          await batch.commit();
-        } catch (e) {
-          console.warn('Auto-seed products error:', e);
-          onUpdate(CURATED_FIXTURES);
-        }
-      } else {
-        const list: LightingProduct[] = [];
-        snapshot.forEach(d => {
-          list.push({ id: d.id, ...d.data() } as LightingProduct);
-        });
-        onUpdate(list);
-      }
+    snapshot => {
+      const list: LightingProduct[] = [];
+      snapshot.forEach(d => {
+        list.push({ id: d.id, ...d.data() } as LightingProduct);
+      });
+      onUpdate(list);
     },
     err => {
       console.warn('Products subscription error:', err);
-      onUpdate(CURATED_FIXTURES);
+      onUpdate([]);
     }
   );
 };
@@ -375,4 +369,111 @@ export const saveCloudBanks = async (companyId: string, banks: BankAccount[]) =>
     // Offline mode: saved locally
   }
 };
+
+/**
+ * 7. DELIVERY CHALLANS REAL-TIME SYNC & CASCADING DELETION
+ */
+export const subscribeToCompanyDeliveryChallans = (
+  companyId: string,
+  onUpdate: (challans: DeliveryChallan[]) => void
+) => {
+  if (!companyId) return () => {};
+  const colRef = collection(db, 'companies', companyId, 'deliveryChallans');
+  return onSnapshot(
+    colRef,
+    snapshot => {
+      const list: DeliveryChallan[] = [];
+      snapshot.forEach(d => {
+        list.push({ id: d.id, ...d.data() } as DeliveryChallan);
+      });
+      // Sort newest dispatch date or createdAt first
+      list.sort((a, b) => new Date(b.dispatchDate || b.createdAt || 0).getTime() - new Date(a.dispatchDate || a.createdAt || 0).getTime());
+      onUpdate(list);
+    },
+    err => {
+      console.warn('Delivery challans subscription error:', err);
+    }
+  );
+};
+
+export const saveCloudDeliveryChallan = async (
+  companyId: string,
+  challan: DeliveryChallan
+) => {
+  if (!companyId || !challan.id) return;
+  try {
+    const docId = sanitizeId(challan.id);
+    const docRef = doc(db, 'companies', companyId, 'deliveryChallans', docId);
+    await setDoc(docRef, JSON.parse(JSON.stringify(challan)), { merge: true });
+  } catch (err) {
+    // Offline mode: saved locally
+  }
+};
+
+export const deleteCloudDeliveryChallan = async (
+  companyId: string,
+  challanId: string
+) => {
+  if (!companyId || !challanId) return;
+  try {
+    const docId = sanitizeId(challanId);
+    const docRef = doc(db, 'companies', companyId, 'deliveryChallans', docId);
+    await deleteDoc(docRef);
+  } catch (err) {
+    // Offline mode: deleted locally
+  }
+};
+
+/**
+ * 8. OWNER-CONTROLLED STUDIO BRAND & BRANCH SETTINGS
+ * When the Studio Owner configures company name, brand colors, branches, logos,
+ * and GST rates, they are saved here so all staff automatically use the owner's settings.
+ */
+export interface StudioConfigRecord {
+  companyName?: string;
+  branches: BranchProfile[];
+  activeBranchId: string;
+  defaultGstRate: number;
+  themeOverride?: {
+    primaryColor: string;
+    accentColor: string;
+    excelBannerColor: string;
+    excelAccentColor: string;
+  } | null;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+export const subscribeToCompanyStudioConfig = (
+  companyId: string,
+  onUpdate: (config: StudioConfigRecord) => void
+) => {
+  if (!companyId) return () => {};
+  const docRef = doc(db, 'companies', companyId, 'settings', 'studioConfig');
+  return onSnapshot(
+    docRef,
+    snap => {
+      if (snap.exists()) {
+        onUpdate(snap.data() as StudioConfigRecord);
+      }
+    },
+    err => {
+      console.warn('Studio config subscription error:', err);
+    }
+  );
+};
+
+export const saveCloudStudioConfig = async (
+  companyId: string,
+  config: StudioConfigRecord
+) => {
+  if (!companyId) return;
+  try {
+    const docRef = doc(db, 'companies', companyId, 'settings', 'studioConfig');
+    await setDoc(docRef, JSON.parse(JSON.stringify(config)), { merge: true });
+  } catch (err) {
+    // Offline mode: saved to localStorage
+  }
+};
+
 

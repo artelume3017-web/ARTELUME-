@@ -1,0 +1,5 @@
+{
+  "summary":  "Comprehensive technical architecture and review scripts for the Mobile and PC Progressive Web App (PWA) download and installation system, including usePWAInstall hook, DownloadAppModal, PWAInstallButton, offline caching with Workbox, and multi-platform installation guides for Windows, macOS, Android, and iOS Safari.",
+  "updatedAt":  "2026-11-02T11:54:39.988965232Z",
+  "userFacing":  true
+}

@@ -43,13 +43,26 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({
   const filteredChallans = challans.filter(dc => {
     if (filterStatus !== 'all' && dc.status !== filterStatus) return false;
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.toLowerCase().trim();
+      // Match against linked quotation name or client
+      const matchedQuote = Object.values(savedQuotes).find(sq =>
+        (sq.quoteNum && dc.quoteNum && sq.quoteNum.toLowerCase() === dc.quoteNum.toLowerCase()) ||
+        (sq.deliveryChallans && sq.deliveryChallans.includes(dc.challanNum)) ||
+        (dc.quoteId && (sq.name === dc.quoteId || sq.quoteNum === dc.quoteId))
+      );
+      const quoteName = (matchedQuote?.name || '').toLowerCase();
+      const quoteClient = (matchedQuote?.client || '').toLowerCase();
+
       return (
         dc.challanNum.toLowerCase().includes(q) ||
         dc.client.toLowerCase().includes(q) ||
+        quoteName.includes(q) ||
+        quoteClient.includes(q) ||
         (dc.quoteNum && dc.quoteNum.toLowerCase().includes(q)) ||
         (dc.vehicleNumber && dc.vehicleNumber.toLowerCase().includes(q)) ||
-        (dc.siteAddress && dc.siteAddress.toLowerCase().includes(q))
+        (dc.siteAddress && dc.siteAddress.toLowerCase().includes(q)) ||
+        (dc.recipientName && dc.recipientName.toLowerCase().includes(q)) ||
+        (dc.allocatedPerson && dc.allocatedPerson.toLowerCase().includes(q))
       );
     }
     return true;
@@ -145,12 +158,12 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({
           ))}
         </div>
 
-        <div className="relative min-w-[220px]">
+        <div className="relative min-w-[260px]">
           <input
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search DC #, client, quote or vehicle..."
+            placeholder="Search by Quotation Name, Client, DC #, or Vehicle..."
             className="w-full pl-8 pr-3 py-1.5 bg-[#faf8f5] border border-neutral-300 rounded-lg text-xs outline-none focus:border-[#7b3f22]"
           />
           <span className="absolute left-2.5 top-2 text-neutral-400 text-xs">🔍</span>
@@ -405,16 +418,20 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({
                             setConfirmDeleteId(null);
                           } else {
                             setConfirmDeleteId(dc.id);
+                            setTimeout(() => {
+                              setConfirmDeleteId(prev => (prev === dc.id ? null : prev));
+                            }, 4000);
                           }
                         }}
-                        className={`p-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all flex items-center gap-1 shrink-0 ${
                           confirmDeleteId === dc.id
-                            ? 'bg-red-600 text-white animate-pulse px-2'
-                            : 'text-neutral-400 hover:text-red-600 hover:bg-red-50'
+                            ? 'bg-red-600 text-white animate-pulse shadow-md ring-2 ring-red-400'
+                            : 'bg-red-50 hover:bg-red-100 text-red-700 border border-red-200'
                         }`}
-                        title="Delete challan"
+                        title="Delete this delivery challan"
                       >
-                        {confirmDeleteId === dc.id ? 'Confirm?' : '🗑️'}
+                        <span>🗑️</span>
+                        <span>{confirmDeleteId === dc.id ? 'Confirm Delete?' : 'Delete'}</span>
                       </button>
                     )}
                   </div>

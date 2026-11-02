@@ -1,0 +1,5 @@
+{
+  "summary":  "Comprehensive technical scripts for: 1) Eliminating all dummy challans and payments when creating quotes, 2) Firestore real-time sync for Delivery Challans (create, update, delete across devices), 3) Owner-controlled Company Settings sync where Owner sets colors, company name, branches, and staff automatically inherits and uses them, 4) Quotation Name search in Delivery Challans and Payments.",
+  "updatedAt":  "2026-11-02T11:15:43.580567765Z",
+  "userFacing":  true
+}

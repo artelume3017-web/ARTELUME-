@@ -71,7 +71,7 @@ export const DeliveryChallanModal: React.FC<DeliveryChallanModalProps> = ({
   const initialAllocation = targetQuote ? allocateDedicatedPersonToChallan(targetQuote, staffName) : null;
 
   const [allocatedPerson, setAllocatedPerson] = useState<string>(() => {
-    return challan?.allocatedPerson || initialAllocation?.allocatedPerson || staffName || 'Vikram Sharma (Sales Lead)';
+    return challan?.allocatedPerson || initialAllocation?.allocatedPerson || staffName || 'Studio In-Charge';
   });
   const [allocatedPersonRole, setAllocatedPersonRole] = useState<string>(() => {
     return challan?.allocatedPersonRole || initialAllocation?.allocatedPersonRole || 'Dedicated Quote In-Charge';
@@ -84,7 +84,7 @@ export const DeliveryChallanModal: React.FC<DeliveryChallanModalProps> = ({
     if (challan?.challanNum) return challan.challanNum;
     const cleanPfx = (targetQuote?.quoteNum || 'AL-001').replace(/^#/, '');
     return existingQuoteChallans.length > 0
-      ? `DC-${cleanPfx}-P${nextBatchSequence}`
+      ? `DC-${cleanPfx}-B${nextBatchSequence}`
       : `DC-${cleanPfx}-${Math.floor(100 + Math.random() * 900)}`;
   });
 
@@ -127,9 +127,7 @@ export const DeliveryChallanModal: React.FC<DeliveryChallanModalProps> = ({
         };
       });
     }
-    return [
-      { sku: 'AL-PEND-8801', name: 'Artè Sculpt Brass Pendant Light', qtyOrdered: 2, qtyDispatched: 2, qtyPending: 0 }
-    ];
+    return [];
   });
 
   const [status, setStatus] = useState<DeliveryChallan['status']>(() => challan?.status || 'Preparing');
@@ -153,9 +151,103 @@ export const DeliveryChallanModal: React.FC<DeliveryChallanModalProps> = ({
 
   // On-Delivery Payment Collection State
   const [recordPaymentNow, setRecordPaymentNow] = useState<boolean>(() => Boolean(challan?.paymentCollected && challan.paymentCollected > 0));
-  const [collectedAmount, setCollectedAmount] = useState<number>(() => Number(challan?.paymentCollected) || (quoteBalance > 0 ? quoteBalance : 0));
+  const [collectedAmount, setCollectedAmount] = useState<number>(() => Number(challan?.paymentCollected) || 0);
   const [collectedMode, setCollectedMode] = useState<QuotationPaymentRecord['paymentMode']>(() => challan?.paymentMode || 'Cash');
   const [collectedRef, setCollectedRef] = useState<string>(() => challan?.paymentRef || '');
+
+  // CRITICAL FIX: Explicit Lifecycle Reset when Modal Opens or target changes (Eliminates #DC-907 duplication)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (challan) {
+      // 1. EDITING EXISTING CHALLAN
+      const qKey = challan.quoteId || (challan.quoteNum ? Object.keys(savedQuotes).find(k => savedQuotes[k].quoteNum === challan.quoteNum) : '') || '';
+      if (qKey) setSelectedQuoteKey(qKey);
+      setChallanNum(challan.challanNum);
+      setClient(challan.client || '');
+      setSiteAddress(challan.siteAddress || '');
+      setContactPhone(challan.contactPhone || '');
+      setDispatchDate(challan.dispatchDate || new Date().toISOString().split('T')[0]);
+      setVehicleNumber(challan.vehicleNumber || 'TS 09 UB 4821');
+      setTransporterName(challan.transporterName || `${branch.name} Internal Logistics`);
+      setDriverName(challan.driverName || '');
+      setDriverPhone(challan.driverPhone || '');
+      setItems(challan.items || []);
+      setStatus(challan.status || 'Preparing');
+      setRecipientName(challan.recipientName || '');
+      setNotes(challan.notes || '');
+      setAllocatedPerson(challan.allocatedPerson || staffName);
+      setAllocatedPersonRole(challan.allocatedPersonRole || 'Dedicated Quote In-Charge');
+      setAllocatedPersonPhone(challan.allocatedPersonPhone || '');
+      const hasPayment = Boolean(challan.paymentCollected && Number(challan.paymentCollected) > 0);
+      setRecordPaymentNow(hasPayment);
+      setCollectedAmount(Number(challan.paymentCollected) || 0);
+      setCollectedMode(challan.paymentMode || 'Cash');
+      setCollectedRef(challan.paymentRef || '');
+    } else {
+      // 2. CREATING A BRAND NEW CHALLAN
+      const targetQ = initialQuote || (selectedQuoteKey ? savedQuotes[selectedQuoteKey] : null) || Object.values(savedQuotes)[0] || null;
+      const qKey = targetQ ? (targetQ.name || targetQ.quoteNum || '') : '';
+      setSelectedQuoteKey(qKey);
+
+      const alloc = targetQ ? allocateDedicatedPersonToChallan(targetQ, staffName) : null;
+      const cleanQuoteNum = (targetQ?.quoteNum || 'AL-001').replace(/^#/, '');
+
+      const qChallans = targetQ ? getLinkedChallansForQuote(targetQ, allChallans) : [];
+      const batchSeq = qChallans.length + 1;
+
+      // Unique batch numbering that avoids collision
+      let generatedNum = `DC-${cleanQuoteNum}-B${batchSeq}`;
+      let suffix = 1;
+      while (allChallans.some(c => c.challanNum.toLowerCase() === generatedNum.toLowerCase())) {
+        suffix++;
+        generatedNum = `DC-${cleanQuoteNum}-B${batchSeq}-${suffix}`;
+      }
+
+      setChallanNum(generatedNum);
+      setClient(targetQ?.client || '');
+      setSiteAddress(targetQ?.siteAddress || `${targetQ?.client || 'Project Site'} (Per Quotation)`);
+      setContactPhone(targetQ?.clientPhone || '');
+      setDispatchDate(new Date().toISOString().split('T')[0]);
+      setVehicleNumber('TS 09 UB 4821');
+      setTransporterName(`${branch.name} Internal Logistics`);
+      setDriverName(alloc?.allocatedPerson || staffName);
+      setDriverPhone(alloc?.allocatedPersonPhone || '');
+      setStatus('Preparing');
+      setRecipientName(alloc?.recipientName || targetQ?.client || '');
+      setNotes('');
+      setAllocatedPerson(alloc?.allocatedPerson || staffName);
+      setAllocatedPersonRole(alloc?.allocatedPersonRole || 'Dedicated Quote In-Charge');
+      setAllocatedPersonPhone(alloc?.allocatedPersonPhone || '');
+
+      if (targetQ && targetQ.items) {
+        setItems(
+          (targetQ.items || []).map(it => {
+            const totalOrdered = it.qty || 1;
+            const alreadyDispatched = qChallans.reduce((sum, dc) => {
+              const match = (dc.items || []).find(dci => dci.sku === it.sku || dci.name === it.name);
+              return sum + (match?.qtyDispatched || 0);
+            }, 0);
+            const remaining = Math.max(0, totalOrdered - alreadyDispatched);
+            return {
+              sku: it.sku || 'AL-SPEC',
+              name: it.name || 'Architectural Lighting Fixture',
+              qtyOrdered: totalOrdered,
+              qtyDispatched: remaining > 0 ? remaining : totalOrdered,
+              qtyPending: Math.max(0, totalOrdered - (alreadyDispatched + (remaining > 0 ? remaining : totalOrdered)))
+            };
+          })
+        );
+      } else {
+        setItems([]);
+      }
+
+      setRecordPaymentNow(false);
+      setCollectedAmount(0);
+      setCollectedMode('Cash');
+      setCollectedRef('');
+    }
+  }, [isOpen, challan?.id, initialQuote?.quoteNum]);
 
   const formatInr = (val: number) => {
     return new Intl.NumberFormat('en-IN', {

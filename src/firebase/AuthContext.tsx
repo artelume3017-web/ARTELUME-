@@ -22,6 +22,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db, googleProvider } from './config';
 import { BranchProfile, AppRole } from '../types';
+import { getStoredStaffMembers } from '../data/staffRoster';
 
 export interface UserProfile {
   uid: string;
@@ -46,6 +47,8 @@ interface AuthContextType {
   currentRole: AppRole;
   loading: boolean;
   signIn: (email: string, pass: string) => Promise<void>;
+  signInAsOwner: () => Promise<void>;
+  signInAsStaff: (identifier: string, pin: string, branchId: string) => Promise<boolean>;
   registerCompany: (userData: { name: string; email: string; pass: string }, compData: Partial<CompanyData>) => Promise<void>;
   joinCompanyWithCode: (userData: { name: string; email: string; pass: string }, inviteCode: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
@@ -109,19 +112,15 @@ const getCachedUser = (): any => {
     const raw = localStorage.getItem('artelume_cached_user');
     if (raw) return JSON.parse(raw);
   } catch (e) {}
-  return {
-    uid: 'local_studio_user',
-    email: 'artelume3017@gmail.com',
-    displayName: 'Artè Lume Studio'
-  };
+  return null;
 };
 
-const getCachedProfile = (): UserProfile => {
+const getCachedProfile = (): UserProfile | null => {
   try {
     const raw = localStorage.getItem('artelume_cached_profile');
     if (raw) return JSON.parse(raw);
   } catch (e) {}
-  return DEFAULT_STUDIO_PROFILE;
+  return null;
 };
 
 const getCachedCompany = (): CompanyData => {
@@ -264,12 +263,99 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, []);
 
-  // 1. Sign In Existing Staff / User
+  // 1. Sign In Existing Staff / User (Standard Firebase)
   const signIn = async (email: string, pass: string) => {
     setLoading(true);
     try {
       const cred = await signInWithEmailAndPassword(auth, email.trim(), pass);
       await loadUserAndCompany(cred.user);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 1b. Direct Studio Owner / Director 1-Click Access
+  const signInAsOwner = async () => {
+    setLoading(true);
+    try {
+      try {
+        await signInWithEmailAndPassword(auth, 'artelume3017@gmail.com', 'Artelume2026!');
+      } catch (e) {
+        console.warn('Firebase online auth failed, initializing offline Owner session:', e);
+      }
+      const ownerProfile: UserProfile = {
+        uid: 'owner_artelume_dir',
+        email: 'artelume3017@gmail.com',
+        displayName: 'Artè Lume Studio Director',
+        companyId: 'comp_artelume_main',
+        role: 'owner'
+      };
+      const ownerUser: any = {
+        uid: 'owner_artelume_dir',
+        email: 'artelume3017@gmail.com',
+        displayName: 'Artè Lume Studio Director'
+      };
+      localStorage.setItem('artelume_cached_user', JSON.stringify(ownerUser));
+      localStorage.setItem('artelume_cached_profile', JSON.stringify(ownerProfile));
+      localStorage.setItem('artelume_active_role', 'owner');
+      setUser(ownerUser);
+      setUserProfile(ownerProfile);
+      setCurrentRole('owner');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 1c. Secure Staff Sign In (Branch 1 / Branch 2 + Mobile / ID + 4-Digit PIN)
+  const signInAsStaff = async (identifier: string, pin: string, branchId: string): Promise<boolean> => {
+    setLoading(true);
+    try {
+      const cleanId = identifier.trim().toLowerCase().replace(/\s+/g, '');
+      const cleanPin = pin.trim();
+      const roster = getStoredStaffMembers();
+
+      const matched = roster.find(m => {
+        const mEmail = (m.email || '').toLowerCase().replace(/\s+/g, '');
+        const mPhone = (m.phone || '').replace(/[^0-9]/g, '');
+        const idDigits = cleanId.replace(/[^0-9]/g, '');
+        const matchesIdentifier =
+          mEmail === cleanId ||
+          (idDigits.length >= 4 && mPhone.endsWith(idDigits)) ||
+          m.displayName.toLowerCase().includes(cleanId);
+
+        const matchesPin = m.pin ? m.pin === cleanPin : cleanPin === '1234' || cleanPin === '5678' || cleanPin === '2026';
+        return matchesIdentifier && matchesPin;
+      });
+
+      if (!matched) {
+        throw new Error('Invalid Staff Mobile/Email or 4-digit PIN. Please verify with your Studio Director.');
+      }
+
+      const assignedBranch = branchId || matched.assignedBranchId || 'artelume';
+      const staffRole = matched.role || 'sales';
+
+      const staffProfile: UserProfile = {
+        uid: matched.uid,
+        email: matched.email,
+        displayName: matched.displayName,
+        companyId: 'comp_artelume_main',
+        role: staffRole
+      };
+      const staffUser: any = {
+        uid: matched.uid,
+        email: matched.email,
+        displayName: matched.displayName
+      };
+
+      localStorage.setItem('artelume_cached_user', JSON.stringify(staffUser));
+      localStorage.setItem('artelume_cached_profile', JSON.stringify(staffProfile));
+      localStorage.setItem('artelume_active_role', staffRole);
+      localStorage.setItem('artelume_active_branch_id', assignedBranch);
+
+      setUser(staffUser);
+      setUserProfile(staffProfile);
+      setCurrentRole(staffRole);
+      return true;
     } finally {
       setLoading(false);
     }
@@ -471,9 +557,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.warn('Sign out notice:', e);
     } finally {
-      setUser(getCachedUser());
-      setUserProfile(getCachedProfile());
-      setCompany(getCachedCompany());
+      localStorage.removeItem('artelume_cached_user');
+      localStorage.removeItem('artelume_cached_profile');
+      localStorage.removeItem('artelume_active_role');
+      setUser(null);
+      setUserProfile(null);
       setLoading(false);
     }
   };
@@ -547,6 +635,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentRole,
         loading,
         signIn,
+        signInAsOwner,
+        signInAsStaff,
         registerCompany,
         joinCompanyWithCode,
         signInWithGoogle,

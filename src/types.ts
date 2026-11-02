@@ -42,6 +42,9 @@ export interface CompanyMember {
   displayName: string;
   role: AppRole;
   phone?: string;
+  pin?: string;                // 4-digit numeric PIN for quick staff sign-in
+  assignedBranchId?: string;   // 'artelume' (Branch 1 - Hyd) or 'artelume-vizag' (Branch 2 - Vizag)
+  assignedBranchName?: string; // Human readable branch label
   status: 'active' | 'invited' | 'disabled';
   joinedAt?: string;
   assignedBy?: string;
@@ -138,6 +141,8 @@ export interface QuotationDocument {
   dedicatedPersonRole?: string;
   dedicatedPersonPhone?: string;
   dedicatedPersonEmail?: string;
+  notes?: string;
+  createdAt?: string;
 }
 
 export interface BranchProfile {

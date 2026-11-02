@@ -301,3 +301,114 @@ export function getPriorDispatchedBreakdown(
   });
 }
 
+/**
+ * Calculates quotation age in elapsed calendar days across various date formats
+ */
+export function getQuotationAgeDays(dateStr?: string, createdAt?: string): number {
+  if (!dateStr && !createdAt) return 0;
+  
+  let targetTime: number | null = null;
+
+  if (createdAt) {
+    const t = new Date(createdAt).getTime();
+    if (!isNaN(t)) targetTime = t;
+  }
+
+  if (!targetTime && dateStr) {
+    const direct = Date.parse(dateStr);
+    if (!isNaN(direct)) {
+      targetTime = direct;
+    } else {
+      const dmmmy = dateStr.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
+      if (dmmmy) {
+        const months: Record<string, number> = {
+          jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+          jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+        };
+        const day = parseInt(dmmmy[1], 10);
+        const mon = months[dmmmy[2].toLowerCase()] ?? 0;
+        const year = parseInt(dmmmy[3], 10);
+        targetTime = new Date(year, mon, day).getTime();
+      }
+    }
+  }
+
+  if (!targetTime) return 0;
+  const now = Date.now();
+  const diffMs = now - targetTime;
+  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+}
+
+export interface QuotationReminderMeta {
+  quoteKey: string;
+  quote: QuotationDocument;
+  ageDays: number;
+  isOverdue30Days: boolean;
+  totalOrderedQty: number;
+  totalDeliveredQty: number;
+  pendingDeliveryQty: number;
+  hasPendingDelivery: boolean;
+  grandTotal: number;
+  totalPaid: number;
+  balanceDue: number;
+  hasOverdueBalance: boolean;
+  priorityScore: number;
+}
+
+export function classifyQuotationReminders(
+  savedQuotes: Record<string, QuotationDocument>,
+  deliveryChallans: DeliveryChallan[]
+): QuotationReminderMeta[] {
+  const TERMINAL_STATUSES = ['Accepted & Paid', 'Delivered'];
+
+  return Object.entries(savedQuotes).map(([quoteKey, q]) => {
+    const ageDays = getQuotationAgeDays(q.date, q.createdAt);
+    const status = q.status || 'Draft';
+    const isTerminal = TERMINAL_STATUSES.includes(status);
+
+    // Multi-batch delivery reconciliation
+    const linkedChallans = getLinkedChallansForQuote(q, deliveryChallans);
+    const totalOrderedQty = (q.items || []).reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
+    const totalDeliveredQty = linkedChallans.reduce((sum, ch) => {
+      return sum + (ch.items || []).reduce((sub, it) => sub + (Number(it.qtyDispatched) || 0), 0);
+    }, 0);
+    const pendingDeliveryQty = Math.max(0, totalOrderedQty - totalDeliveredQty);
+    const hasPendingDelivery = !isTerminal && pendingDeliveryQty > 0;
+
+    // Financial calculations
+    const itemsSubtotal = (q.items || []).reduce((sum, it) => sum + (Number(it.price) || 0) * (Number(it.qty) || 0), 0);
+    const gstMultiplier = 1 + (Number(q.gst ?? 18) / 100);
+    const grandTotal = Math.round(itemsSubtotal * gstMultiplier);
+    const totalPaid = (q.payments || []).reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+    const balanceDue = Math.max(0, grandTotal - totalPaid);
+    const hasOverdueBalance = !isTerminal && balanceDue > 0 && ageDays > 15;
+
+    // Overdue rule (>30 days and not terminal)
+    const isOverdue30Days = !isTerminal && ageDays > 30;
+
+    let priorityScore = 0;
+    if (isOverdue30Days) priorityScore += 100;
+    if (hasOverdueBalance) priorityScore += 50;
+    if (hasPendingDelivery) priorityScore += 30;
+    priorityScore += Math.min(50, ageDays);
+
+    return {
+      quoteKey,
+      quote: q,
+      ageDays,
+      isOverdue30Days,
+      totalOrderedQty,
+      totalDeliveredQty,
+      pendingDeliveryQty,
+      hasPendingDelivery,
+      grandTotal,
+      totalPaid,
+      balanceDue,
+      hasOverdueBalance,
+      priorityScore
+    };
+  }).filter(meta => meta.isOverdue30Days || meta.hasPendingDelivery || meta.hasOverdueBalance)
+    .sort((a, b) => b.priorityScore - a.priorityScore);
+}
+
+

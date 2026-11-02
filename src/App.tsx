@@ -44,7 +44,13 @@ import {
   subscribeToCompanyBankTransactions,
   saveCloudBankTransaction,
   deleteCloudBankTransaction,
-  saveCloudBanks
+  saveCloudBanks,
+  subscribeToCompanyDeliveryChallans,
+  saveCloudDeliveryChallan,
+  deleteCloudDeliveryChallan,
+  subscribeToCompanyStudioConfig,
+  saveCloudStudioConfig,
+  StudioConfigRecord
 } from './firebase/syncService';
 import { safeBase64ToUtf8 } from './utils/shareUtils';
 import { DashboardCharts } from './components/DashboardCharts';
@@ -58,7 +64,20 @@ import { PaymentRecordModal } from './components/PaymentRecordModal';
 import { DeliveryChallanModal } from './components/DeliveryChallanModal';
 import { DeliveryChallanView } from './components/DeliveryChallanView';
 import { TeamManagementModal } from './components/TeamManagementModal';
-import { createPaymentRecordFromChallan, isChallanLinkedToQuote, getLinkedChallansForQuote } from './utils/challanAllocation';
+import { NotifyClientModal } from './components/NotifyClientModal';
+import { PWAInstallButton } from './components/PWAInstallButton';
+import { DownloadAppModal } from './components/DownloadAppModal';
+import { AppUsageGuideModal } from './components/AppUsageGuideModal';
+import { AppWelcomePromptModal } from './components/AppWelcomePromptModal';
+import { OfflineIndicator } from './components/OfflineIndicator';
+import {
+  createPaymentRecordFromChallan,
+  isChallanLinkedToQuote,
+  getLinkedChallansForQuote,
+  getQuotationAgeDays,
+  classifyQuotationReminders,
+  QuotationReminderMeta
+} from './utils/challanAllocation';
 
 export const DEFAULT_BRANCHES: BranchProfile[] = [
   {
@@ -250,43 +269,8 @@ function StudioQuotationApp() {
     name: string;
   } | null>(null);
 
-  // Quotation Items
-  const [items, setItems] = useState<QuotationItem[]>([
-    {
-      id: 'item-1',
-      sku: 'AL-PEND-8801',
-      name: 'Artè Sculpt Brass Pendant Light',
-      category: 'Pendant Lights',
-      watt: '18W',
-      cct: '3000K',
-      beam: 'Diffused 120°',
-      cri: 'CRI 95+',
-      ip: 'IP20',
-      finish: 'Brushed Brass',
-      qty: 2,
-      listPrice: 14500,
-      discount: 10,
-      price: 13050,
-      img: ''
-    },
-    {
-      id: 'item-2',
-      sku: 'AL-DOWN-410',
-      name: 'Lume Ellipse Recessed Downlight 12W',
-      category: 'Downlights',
-      watt: '12W',
-      cct: '3000K',
-      beam: '24° Spot',
-      cri: 'CRI 97+',
-      ip: 'IP44',
-      finish: 'Sandy White',
-      qty: 8,
-      listPrice: 4650,
-      discount: 15,
-      price: 3952.5,
-      img: ''
-    }
-  ]);
+  // Quotation Items - Clean Slate
+  const [items, setItems] = useState<QuotationItem[]>([]);
 
   // Saved Quotations & Databases
   const [savedQuotes, setSavedQuotes] = useState<Record<string, QuotationDocument>>({});
@@ -354,52 +338,29 @@ function StudioQuotationApp() {
   const [showWhatsAppShareModal, setShowWhatsAppShareModal] = useState(false);
   const [showPdfPreviewModal, setShowPdfPreviewModal] = useState(false);
   const [quoteBuilderMode, setQuoteBuilderMode] = useState<'table' | 'gallery'>('table');
+  const [showUsageGuideModal, setShowUsageGuideModal] = useState(false);
+  const [showStoreInstallModal, setShowStoreInstallModal] = useState(false);
+  const [showWelcomePromptModal, setShowWelcomePromptModal] = useState<boolean>(() => {
+    try {
+      const dismissed = localStorage.getItem('artelume_welcome_prompt_dismissed');
+      return dismissed !== 'true';
+    } catch {
+      return false;
+    }
+  });
 
-  // Delivery Challans State
+  // Delivery Challans State - Pristine Clean Slate (Filters out legacy demo records)
   const [deliveryChallans, setDeliveryChallans] = useState<DeliveryChallan[]>(() => {
     try {
       const saved = localStorage.getItem('artelume_delivery_challans');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter(c => c.id !== 'dc-demo-1' && !c.challanNum.includes('DC-2026-901'));
+        }
       }
     } catch (e) {}
-    return [
-      {
-        id: 'dc-demo-1',
-        challanNum: 'DC-2026-901',
-        quoteId: 'AL-001',
-        quoteNum: 'AL-001',
-        client: 'Ar. Rajesh Mehta (Jubilee Hills Villa)',
-        siteAddress: 'Plot 42, Road No. 36, Jubilee Hills, Hyderabad',
-        contactPhone: '+91 98490 55432',
-        dispatchDate: todayStr(),
-        vehicleNumber: 'TS 09 UB 4821',
-        driverName: 'Suresh Kumar',
-        driverPhone: '+91 97000 12345',
-        status: 'In-Transit',
-        recipientName: 'Site Supervisor Mr. Venkat',
-        notes: 'Careful handling - Brass decorative pendants and recessed COB drivers included.',
-        items: [
-          {
-            id: 'item-1',
-            sku: 'AL-PEND-8801',
-            name: 'Artè Sculpt Brass Pendant Light',
-            orderedQty: 2,
-            dispatchedQty: 2,
-            unit: 'PCS'
-          },
-          {
-            id: 'item-2',
-            sku: 'AL-DOWN-410',
-            name: 'Lume Ellipse Recessed Downlight 12W',
-            orderedQty: 8,
-            dispatchedQty: 8,
-            unit: 'PCS'
-          }
-        ]
-      }
-    ];
+    return [];
   });
 
   // Advance / Payment Recording Modal State
@@ -440,6 +401,11 @@ function StudioQuotationApp() {
   const [editingChallan, setEditingChallan] = useState<DeliveryChallan | null>(null);
   const [challanSourceQuote, setChallanSourceQuote] = useState<QuotationDocument | null>(null);
   const [challanModalInitialTab, setChallanModalInitialTab] = useState<'edit' | 'payment' | 'slip'>('edit');
+
+  // Pending & Overdue Reminders Panel State
+  const [reminderFilterTab, setReminderFilterTab] = useState<'all' | 'overdue' | 'delivery' | 'balance'>('all');
+  const [showNotifyClientModal, setShowNotifyClientModal] = useState(false);
+  const [notifyClientTarget, setNotifyClientTarget] = useState<QuotationReminderMeta | null>(null);
 
   // Visual Progress States for Excel and PDF Exports in Quotation Builder
   const [excelProgress, setExcelProgress] = useState<{
@@ -1020,20 +986,55 @@ function StudioQuotationApp() {
     setTimeout(() => setToastMsg(null), 3000);
   };
 
-  // 1. Initial Load from localStorage
+  // 1. Initial Load from localStorage & Clean Slate
   useEffect(() => {
-    // Load products
+    // Load products - Clean Slate (No automatic CURATED_FIXTURES injection)
     try {
       const storedProds = localStorage.getItem('artelume_products');
       if (storedProds) {
         setProducts(JSON.parse(storedProds));
       } else {
-        setProducts(CURATED_FIXTURES);
-        localStorage.setItem('artelume_products', JSON.stringify(CURATED_FIXTURES));
+        setProducts([]);
+        localStorage.setItem('artelume_products', JSON.stringify([]));
       }
     } catch {
-      setProducts(CURATED_FIXTURES);
+      setProducts([]);
     }
+
+    // Startup deduplication for delivery challans (resolves duplicate #DC-907 and removes legacy demo records)
+    try {
+      const rawDc = localStorage.getItem('artelume_delivery_challans');
+      if (rawDc) {
+        const parsed = JSON.parse(rawDc);
+        if (Array.isArray(parsed)) {
+          const seen = new Map<string, DeliveryChallan>();
+          let hasDups = false;
+          parsed.forEach((c: DeliveryChallan) => {
+            const numKey = (c.challanNum || '').trim().toLowerCase();
+            if (!numKey || c.id === 'dc-demo-1' || c.challanNum.includes('DC-2026-901')) {
+              hasDups = true;
+              return;
+            }
+            if (seen.has(numKey)) {
+              hasDups = true;
+              const existing = seen.get(numKey)!;
+              const existingTime = new Date(existing.createdAt || 0).getTime();
+              const currentTime = new Date(c.createdAt || 0).getTime();
+              if (currentTime > existingTime) {
+                seen.set(numKey, c);
+              }
+            } else {
+              seen.set(numKey, c);
+            }
+          });
+          const deduped = Array.from(seen.values());
+          if (hasDups || deduped.length !== parsed.length) {
+            localStorage.setItem('artelume_delivery_challans', JSON.stringify(deduped));
+            setDeliveryChallans(deduped);
+          }
+        }
+      }
+    } catch (e) {}
 
     // Clean up Lightcraft from storage if present
     try {
@@ -1092,7 +1093,7 @@ function StudioQuotationApp() {
 
     // 2. Product catalog real-time sync
     const unsubProducts = subscribeToCompanyProducts(company.id, cloudProds => {
-      if (cloudProds && cloudProds.length > 0) {
+      if (cloudProds) {
         setProducts(cloudProds);
       }
     });
@@ -1109,7 +1110,6 @@ function StudioQuotationApp() {
       if (cloudTxs && cloudTxs.length > 0) {
         setBankTransactions(prev => {
           const mergedMap = new Map<string, BankTransaction>();
-          // Cloud takes precedence for verified transactions, merged with local
           prev.forEach(t => mergedMap.set(t.id, t));
           cloudTxs.forEach(t => mergedMap.set(t.id, t));
           const result = Array.from(mergedMap.values());
@@ -1122,11 +1122,51 @@ function StudioQuotationApp() {
       }
     });
 
+    // 5. Delivery Challans real-time sync across company devices
+    const unsubChallans = subscribeToCompanyDeliveryChallans(company.id, cloudChallans => {
+      if (cloudChallans) {
+        const cleanList = cloudChallans.filter(c => c.id !== 'dc-demo-1' && !c.challanNum.includes('DC-2026-901'));
+        setDeliveryChallans(cleanList);
+        try {
+          localStorage.setItem('artelume_delivery_challans', JSON.stringify(cleanList));
+        } catch (e) {}
+      }
+    });
+
+    // 6. Studio Branding & Settings sync (Owner configures -> all staff devices automatically inherit)
+    const unsubStudioConfig = subscribeToCompanyStudioConfig(company.id, cloudConfig => {
+      if (cloudConfig) {
+        if (cloudConfig.branches && cloudConfig.branches.length > 0) {
+          setBranches(cloudConfig.branches);
+          try {
+            localStorage.setItem('artelume_branches', JSON.stringify(cloudConfig.branches));
+          } catch (e) {}
+        }
+        if (cloudConfig.activeBranchId) {
+          setActiveBranchId(cloudConfig.activeBranchId);
+          try {
+            localStorage.setItem('artelume_active_branch_id', cloudConfig.activeBranchId);
+          } catch (e) {}
+        }
+        if (cloudConfig.themeOverride) {
+          setThemeOverride(cloudConfig.themeOverride);
+        }
+        if (cloudConfig.defaultGstRate !== undefined) {
+          setGstRate(cloudConfig.defaultGstRate);
+          try {
+            localStorage.setItem('artelume_default_gst', String(cloudConfig.defaultGstRate));
+          } catch (e) {}
+        }
+      }
+    });
+
     return () => {
       unsubQuotes();
       unsubProducts();
       unsubCustomers();
       unsubBankTxs();
+      unsubChallans();
+      unsubStudioConfig();
     };
   }, [company?.id]);
 
@@ -1633,6 +1673,15 @@ function StudioQuotationApp() {
                 logoUrl: branchEditForm.logoUrl
               }
             : {})
+        });
+        await saveCloudStudioConfig(company.id, {
+          companyName: branchEditForm.name,
+          branches: updated,
+          activeBranchId,
+          defaultGstRate: gstRate,
+          themeOverride: branchEditForm.theme,
+          updatedBy: user?.email || 'Owner',
+          updatedAt: new Date().toISOString()
         });
       } catch (err) {
         console.warn('Could not sync branch edits to Firestore company:', err);
@@ -3383,6 +3432,11 @@ function StudioQuotationApp() {
       else if (challan.status === 'In-Transit') setQuoteStatus('Dispatched');
     }
 
+    // 5. Cloud Sync Delivery Challan to Firestore
+    if (company?.id) {
+      saveCloudDeliveryChallan(company.id, challan).catch(console.warn);
+    }
+
     showToast(`🚚 Delivery Challan #${challan.challanNum} saved for ${challan.client || 'client'}${paymentToRecord ? ` & payment receipt ${paymentToRecord.receiptNumber} (${formatInr(paymentToRecord.amount)}) credited to Bank!` : '!'}`);
   };
 
@@ -3425,30 +3479,87 @@ function StudioQuotationApp() {
   const handleDeleteChallan = (challanId: string) => {
     setDeliveryChallans(prev => {
       const target = prev.find(c => c.id === challanId);
+      if (!target) return prev;
+
       const updated = prev.filter(c => c.id !== challanId);
       try {
         localStorage.setItem('artelume_delivery_challans', JSON.stringify(updated));
       } catch (e) {}
-      if (target) {
-        setSavedQuotes(sq => {
-          const nextSq = { ...sq };
-          for (const k of Object.keys(nextSq)) {
-            if (nextSq[k].deliveryChallans?.includes(target.challanNum)) {
-              nextSq[k] = {
-                ...nextSq[k],
-                deliveryChallans: nextSq[k].deliveryChallans!.filter(cn => cn !== target.challanNum)
-              };
+
+      // Cloud deletion
+      if (company?.id) {
+        deleteCloudDeliveryChallan(company.id, challanId).catch(console.warn);
+      }
+
+      // 1. Remove from Quotation reference & revert payment receipt
+      const cleanChallanNum = target.challanNum.replace(/^DC-?/i, '');
+      const receiptNum = `RCP-DC-${cleanChallanNum}`;
+
+      setSavedQuotes(sq => {
+        const nextSq = { ...sq };
+        for (const k of Object.keys(nextSq)) {
+          const q = nextSq[k];
+          if (q.deliveryChallans?.includes(target.challanNum)) {
+            const nextChallans = (q.deliveryChallans || []).filter(cn => cn !== target.challanNum);
+            const nextPayments = (q.payments || []).filter(
+              p => p.receiptNumber !== receiptNum && p.id !== `pay-dc-${target.id}` && p.id !== `pay-dc-${target.challanNum}`
+            );
+            const totalPaid = nextPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+            const itemsSubtotal = (q.items || []).reduce((s, it) => s + (Number(it.price) || 0) * (Number(it.qty) || 0), 0);
+            const grandTotal = Math.round(itemsSubtotal * (1 + (Number(q.gst) || 18) / 100));
+            let newStatus = q.status;
+            if (totalPaid <= 0) newStatus = 'Draft';
+            else if (totalPaid < grandTotal) newStatus = 'Advance Received';
+            else newStatus = 'Accepted & Paid';
+
+            nextSq[k] = {
+              ...q,
+              deliveryChallans: nextChallans,
+              payments: nextPayments,
+              status: newStatus
+            };
+            if (company?.id) {
+              saveCloudQuotation(company.id, k, nextSq[k]).catch(console.warn);
             }
           }
+        }
+        try {
+          localStorage.setItem('artelume_quotes', JSON.stringify(nextSq));
+        } catch (e) {}
+        return nextSq;
+      });
+
+      // 2. Revert from Bank Transactions Passbook & Bank Balance
+      if (target.paymentCollected && Number(target.paymentCollected) > 0) {
+        setBankTransactions(bt => {
+          const next = bt.filter(t => t.receiptNumber !== receiptNum && t.id !== `tx-pay-dc-${target.id}`);
           try {
-            localStorage.setItem('artelume_quotes', JSON.stringify(nextSq));
+            localStorage.setItem('artelume_bank_transactions', JSON.stringify(next));
           } catch (e) {}
-          return nextSq;
+          return next;
         });
+
+        if (company?.id) {
+          deleteCloudBankTransaction(company.id, `tx-pay-dc-${target.id}`).catch(console.warn);
+          deleteCloudBankTransaction(company.id, `tx-${receiptNum}`).catch(console.warn);
+        }
+
+        if (target.paymentMode !== 'Cash') {
+          setBanks(bList => {
+            const next = bList.map((b, idx) =>
+              idx === 0 ? { ...b, bal: Math.max(0, (Number(b.bal) || 0) - Number(target.paymentCollected)) } : b
+            );
+            try {
+              localStorage.setItem('artelume_banks', JSON.stringify(next));
+            } catch (e) {}
+            return next;
+          });
+        }
       }
+
       return updated;
     });
-    showToast('🗑️ Delivery Challan removed from records.');
+    showToast('🗑️ Delivery Challan removed from records & cloud!');
   };
 
   const handleUpdateChallanStatus = (challanId: string, status: DeliveryChallan['status'], recipientName?: string) => {
@@ -3469,6 +3580,12 @@ function StudioQuotationApp() {
       try {
         localStorage.setItem('artelume_delivery_challans', JSON.stringify(updated));
       } catch (e) {}
+      if (company?.id) {
+        const matchDc = updated.find(c => c.id === challanId);
+        if (matchDc) {
+          saveCloudDeliveryChallan(company.id, matchDc).catch(console.warn);
+        }
+      }
       return updated;
     });
 
@@ -3582,6 +3699,9 @@ function StudioQuotationApp() {
         </div>
       )}
 
+      {/* Offline Status Indicator */}
+      <OfflineIndicator />
+
       {/* Luxury ARTÈ LUME Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-64 text-[#ede5dc] flex flex-col border-r border-white/5 transition-all duration-300 ${
@@ -3658,8 +3778,8 @@ function StudioQuotationApp() {
           )}
         </div>
 
-        {/* Primary Action Button */}
-        <div className="px-4 py-2">
+        {/* Primary Action Button & Install Button */}
+        <div className="px-4 py-2 space-y-2">
           <button
             onClick={startNewQuote}
             className="w-full flex items-center justify-center gap-2 text-white py-2.5 px-4 rounded-lg font-semibold text-sm hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer shadow-lg"
@@ -3672,11 +3792,34 @@ function StudioQuotationApp() {
             <span className="text-lg leading-none">+</span>
             <span>New Quotation</span>
           </button>
+
+          {/* Download & Install PWA Button for Mobile & PC */}
+          <PWAInstallButton
+            variant="sidebar"
+            primaryColor={activeBranch.theme.primaryColor}
+            accentColor={activeBranch.theme.accentColor}
+          />
         </div>
 
         {/* Navigation Items */}
         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 text-sm font-medium">
           <div className="text-[10px] uppercase tracking-wider text-[#9a8473] font-bold px-3 py-2">Navigation</div>
+
+          {/* Interactive User Guide Walkthrough Launcher */}
+          <button
+            type="button"
+            onClick={() => setShowUsageGuideModal(true)}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all cursor-pointer text-left bg-gradient-to-r from-amber-500/15 to-transparent hover:from-amber-500/25 border border-amber-500/35 text-amber-200 shadow-xs mb-2"
+            title="Interactive 5-step walkthrough guide on how to use ARTÈ LUME"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="text-base">📖</span>
+              <span className="text-xs font-bold text-[#f5eee6]">How to Use App</span>
+            </div>
+            <span className="text-[9.5px] font-black px-1.5 py-0.2 rounded bg-amber-400 text-neutral-950 uppercase tracking-wider">
+              Guide
+            </span>
+          </button>
 
           <button
             onClick={() => navigateView('dashboard')}
@@ -4161,6 +4304,29 @@ function StudioQuotationApp() {
               </button>
             )}
 
+            {/* Interactive User Guide (How to Use App) */}
+            <button
+              type="button"
+              onClick={() => setShowUsageGuideModal(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-amber-300 bg-black/40 hover:bg-black/60 border border-amber-500/40 transition-colors cursor-pointer shadow-xs"
+              title="How to Use ARTÈ LUME — Interactive 5-Step Guide"
+            >
+              <span>📖</span>
+              <span className="hidden sm:inline">How to Use App</span>
+              <span className="sm:hidden">Guide</span>
+            </button>
+
+            {/* Mobile / Tablet Store Listing Trigger */}
+            <button
+              type="button"
+              onClick={() => setShowStoreInstallModal(true)}
+              className="flex sm:hidden items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-bold text-stone-200 bg-black/40 hover:bg-black/60 border border-white/10 transition-colors cursor-pointer"
+              title="Official Mobile & PC Application"
+            >
+              <span>📲</span>
+              <span>App</span>
+            </button>
+
             {/* User Account / Profile Button that opens StudioAccountModal */}
             <button
               onClick={() => setShowAccountModal(true)}
@@ -4214,37 +4380,348 @@ function StudioQuotationApp() {
                 </div>
               </div>
 
-              {/* KPI Strip */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-xl border border-[#e4e5e7] shadow-sm">
-                  <div className="text-xs text-[#7c828b] font-medium">Total Quotations</div>
-                  <div className="text-2xl font-extrabold mt-1">{Object.keys(savedQuotes).length}</div>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-[#e4e5e7] shadow-sm">
-                  <div className="text-xs text-[#5cb85c] font-medium">Active Receivables</div>
-                  <div className="text-2xl font-extrabold text-[#327442] mt-1">
-                    {formatInr(
-                      Object.values(savedQuotes).reduce((sum, q) => {
-                        const itemsTotal = q.items.reduce((s, it) => s + (it.price || 0) * (it.qty || 0), 0);
-                        return sum + itemsTotal * 1.18;
-                      }, 0)
-                    )}
+              {/* Computed Quotation Follow-up & Reminder Metrics */}
+              {(() => {
+                const reminderItems = classifyQuotationReminders(savedQuotes, deliveryChallans);
+                const overdueItems = reminderItems.filter(r => r.isOverdue30Days);
+                const pendingDeliveryItems = reminderItems.filter(r => r.hasPendingDelivery);
+                const balanceDueItems = reminderItems.filter(r => r.hasOverdueBalance);
+
+                const displayedReminders = reminderFilterTab === 'overdue'
+                  ? overdueItems
+                  : reminderFilterTab === 'delivery'
+                  ? pendingDeliveryItems
+                  : reminderFilterTab === 'balance'
+                  ? balanceDueItems
+                  : reminderItems;
+
+                const scrollToReminderPanel = () => {
+                  const el = document.getElementById('pending-overdue-panel');
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                };
+
+                return (
+                  <div className="space-y-6">
+                    {/* KPI Strip with 6 Quick-Action Metric Cards */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
+                      {/* 1. Total Quotations */}
+                      <div className="bg-white p-4 rounded-xl border border-[#e4e5e7] shadow-sm">
+                        <div className="text-xs text-[#7c828b] font-medium">Total Quotations</div>
+                        <div className="text-2xl font-extrabold mt-1">{Object.keys(savedQuotes).length}</div>
+                      </div>
+
+                      {/* 2. Active Receivables */}
+                      <div className="bg-white p-4 rounded-xl border border-[#e4e5e7] shadow-sm">
+                        <div className="text-xs text-[#5cb85c] font-medium">Active Receivables</div>
+                        <div className="text-2xl font-extrabold text-[#327442] mt-1">
+                          {formatInr(
+                            Object.values(savedQuotes).reduce((sum, q) => {
+                              const itemsTotal = q.items.reduce((s, it) => s + (it.price || 0) * (it.qty || 0), 0);
+                              return sum + itemsTotal * 1.18;
+                            }, 0)
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 3. Overdue (>30d) Quick-Action Counter Card */}
+                      <div
+                        onClick={() => {
+                          setReminderFilterTab('overdue');
+                          scrollToReminderPanel();
+                        }}
+                        className={`p-4 rounded-xl border transition-all cursor-pointer shadow-sm ${
+                          overdueItems.length > 0
+                            ? 'bg-red-50/70 border-red-200 hover:border-red-300 hover:bg-red-50 ring-1 ring-red-200'
+                            : 'bg-white border-[#e4e5e7] hover:border-gray-300'
+                        }`}
+                        title="Click to view all quotations created >30 days ago that require follow-up"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-red-700">Overdue (&gt;30d)</span>
+                          <span className="text-xs">🚨</span>
+                        </div>
+                        <div className="text-2xl font-black text-red-700 mt-1">
+                          {overdueItems.length}
+                        </div>
+                        <div className="text-[10px] text-red-600 font-semibold mt-0.5 flex items-center gap-1">
+                          <span>Action needed</span>
+                          <span>›</span>
+                        </div>
+                      </div>
+
+                      {/* 4. Pending Actions Counter Card */}
+                      <div
+                        onClick={() => {
+                          setReminderFilterTab('all');
+                          scrollToReminderPanel();
+                        }}
+                        className={`p-4 rounded-xl border transition-all cursor-pointer shadow-sm ${
+                          reminderItems.length > 0
+                            ? 'bg-amber-50/70 border-amber-200 hover:border-amber-300 hover:bg-amber-50 ring-1 ring-amber-200'
+                            : 'bg-white border-[#e4e5e7] hover:border-gray-300'
+                        }`}
+                        title="Click to view all pending proposals and material shipments"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-amber-900">Pending Actions</span>
+                          <span className="text-xs">⏳</span>
+                        </div>
+                        <div className="text-2xl font-black text-amber-900 mt-1">
+                          {reminderItems.length}
+                        </div>
+                        <div className="text-[10px] text-amber-700 font-semibold mt-0.5 flex items-center gap-1">
+                          <span>Review &amp; notify</span>
+                          <span>›</span>
+                        </div>
+                      </div>
+
+                      {/* 5. Catalog Fixtures */}
+                      <div className="bg-white p-4 rounded-xl border border-[#e4e5e7] shadow-sm">
+                        <div className="text-xs text-[#7c828b] font-medium">Catalog Fixtures</div>
+                        <div className="text-2xl font-extrabold mt-1">{products.length}</div>
+                      </div>
+
+                      {/* 6. Cash In-Hand */}
+                      <div className="bg-white p-4 rounded-xl border border-[#e4e5e7] shadow-sm">
+                        <div className="text-xs text-[#7c828b] font-medium">Cash In-Hand</div>
+                        <div
+                          className="text-2xl font-extrabold mt-1 transition-colors"
+                          style={{ color: activeBranch.theme.accentColor }}
+                        >
+                          {formatInr(cashEntries.reduce((s, c) => s + (Number(c.amt) || 0), 0))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 'Pending & Overdue' Action Center Panel */}
+                    <div id="pending-overdue-panel" className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden scroll-mt-6">
+                      {/* Panel Header */}
+                      <div className="p-4 sm:p-5 bg-gradient-to-r from-neutral-900 via-[#221710] to-neutral-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-xl shrink-0">
+                            ⏰
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-bold text-base text-neutral-100">
+                                Pending &amp; Overdue Quotations Center
+                              </h3>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-neutral-950">
+                                {reminderItems.length} FLAGGED
+                              </span>
+                            </div>
+                            <p className="text-xs text-neutral-400 mt-0.5">
+                              Automatic tracking for quotations requiring follow-ups, pending material delivery, or balance collection
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Filter Tabs */}
+                        <div className="flex items-center gap-1.5 flex-wrap bg-neutral-800/80 p-1 rounded-xl border border-neutral-700 self-start sm:self-auto text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setReminderFilterTab('all')}
+                            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                              reminderFilterTab === 'all'
+                                ? 'bg-[#df9c20] text-[#170e08] shadow-xs'
+                                : 'text-neutral-300 hover:text-white hover:bg-white/5'
+                            }`}
+                          >
+                            All ({reminderItems.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setReminderFilterTab('overdue')}
+                            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                              reminderFilterTab === 'overdue'
+                                ? 'bg-red-600 text-white shadow-xs'
+                                : 'text-neutral-300 hover:text-white hover:bg-white/5'
+                            }`}
+                          >
+                            🚨 Overdue &gt;30d ({overdueItems.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setReminderFilterTab('delivery')}
+                            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                              reminderFilterTab === 'delivery'
+                                ? 'bg-indigo-600 text-white shadow-xs'
+                                : 'text-neutral-300 hover:text-white hover:bg-white/5'
+                            }`}
+                          >
+                            📦 Pending Material ({pendingDeliveryItems.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setReminderFilterTab('balance')}
+                            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                              reminderFilterTab === 'balance'
+                                ? 'bg-amber-600 text-white shadow-xs'
+                                : 'text-neutral-300 hover:text-white hover:bg-white/5'
+                            }`}
+                          >
+                            💳 Balance Due ({balanceDueItems.length})
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Panel Items List */}
+                      <div className="p-4 sm:p-5">
+                        {displayedReminders.length === 0 ? (
+                          <div className="p-8 text-center space-y-2">
+                            <span className="text-3xl block">🎉</span>
+                            <div className="font-bold text-sm text-neutral-800">
+                              No Quotations Flagged in this View
+                            </div>
+                            <p className="text-xs text-neutral-500 max-w-sm mx-auto">
+                              {reminderItems.length === 0
+                                ? 'Outstanding proposals are completely updated with zero overdue actions or undelivered fixtures.'
+                                : 'No quotations meet the active filter tab selection.'}
+                            </p>
+                            {reminderFilterTab !== 'all' && (
+                              <button
+                                type="button"
+                                onClick={() => setReminderFilterTab('all')}
+                                className="mt-2 text-xs font-bold text-[#7b3f22] hover:underline cursor-pointer"
+                              >
+                                View All Flagged Proposals ({reminderItems.length})
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-neutral-200">
+                            {displayedReminders.map(meta => {
+                              const q = meta.quote;
+                              const qNum = q.quoteNum || meta.quoteKey;
+                              const client = q.client || q.name || 'Valued Client';
+                              const status = q.status || 'Draft';
+
+                              return (
+                                <div
+                                  key={meta.quoteKey}
+                                  className="py-4 first:pt-0 last:pb-0 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-neutral-50/60 p-2.5 rounded-xl transition-colors"
+                                >
+                                  {/* Left: Client & Proposal Identifiers */}
+                                  <div className="space-y-1.5 min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-bold text-sm text-neutral-900">{client}</span>
+                                      <span className="font-mono text-xs font-bold text-[#7b3f22] bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                        #{qNum}
+                                      </span>
+                                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                        status === 'Accepted & Paid'
+                                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                          : status === 'Advance Received'
+                                          ? 'bg-blue-100 text-blue-800 border-blue-300'
+                                          : status === 'Delivered'
+                                          ? 'bg-purple-100 text-purple-800 border-purple-300'
+                                          : 'bg-neutral-100 text-neutral-700 border-neutral-300'
+                                      }`}>
+                                        {status}
+                                      </span>
+                                      {meta.isOverdue30Days && (
+                                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-300 animate-pulse">
+                                          🚨 {meta.ageDays} DAYS OLD (OVERDUE)
+                                        </span>
+                                      )}
+                                      {!meta.isOverdue30Days && (
+                                        <span className="text-[10px] font-semibold text-neutral-500">
+                                          📅 Created {meta.ageDays}d ago ({q.date || 'Earlier'})
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Financial & Delivery Metrics Strip */}
+                                    <div className="flex items-center gap-4 text-xs text-neutral-600 flex-wrap pt-0.5">
+                                      <div>
+                                        <span className="text-neutral-400">Total:</span>{' '}
+                                        <strong className="text-neutral-900">{formatInr(meta.grandTotal)}</strong>
+                                      </div>
+                                      <div>
+                                        <span className="text-neutral-400">Paid:</span>{' '}
+                                        <strong className="text-emerald-700">{formatInr(meta.totalPaid)}</strong>
+                                      </div>
+                                      {meta.balanceDue > 0 && (
+                                        <div>
+                                          <span className="text-neutral-400">Balance:</span>{' '}
+                                          <strong className="text-amber-800 font-extrabold">{formatInr(meta.balanceDue)}</strong>
+                                        </div>
+                                      )}
+                                      <div className="border-l border-neutral-300 pl-3">
+                                        <span className="text-neutral-400">Dispatched:</span>{' '}
+                                        <strong className={meta.hasPendingDelivery ? 'text-indigo-800' : 'text-emerald-700'}>
+                                          {meta.totalDeliveredQty} / {meta.totalOrderedQty} units
+                                        </strong>
+                                        {meta.hasPendingDelivery && (
+                                          <span className="text-[10px] text-indigo-600 font-bold ml-1">
+                                            ({meta.pendingDeliveryQty} left)
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Right: Quick Action Buttons */}
+                                  <div className="flex items-center gap-2 flex-wrap shrink-0">
+                                    {/* 1. Notify Client (Follow-up Email / WhatsApp) */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setNotifyClientTarget(meta);
+                                        setShowNotifyClientModal(true);
+                                      }}
+                                      className="px-3.5 py-1.5 bg-[#df9c20] hover:brightness-105 text-[#170e08] font-bold text-xs rounded-lg shadow-2xs cursor-pointer flex items-center gap-1.5 transition-all"
+                                      title="Generate follow-up email or WhatsApp message with proposal summary link"
+                                    >
+                                      <span>📢</span>
+                                      <span>Notify Client</span>
+                                    </button>
+
+                                    {/* 2. Payment */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenRecordPayment(q, 'add')}
+                                      className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs rounded-lg shadow-2xs cursor-pointer flex items-center gap-1 transition-all"
+                                      title="Record payment or booking advance"
+                                    >
+                                      <span>💳</span>
+                                      <span>Payment</span>
+                                    </button>
+
+                                    {/* 3. Delivery Challan */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenCreateChallan(q)}
+                                      className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 text-white font-bold text-xs rounded-lg shadow-2xs cursor-pointer flex items-center gap-1 transition-all"
+                                      title="Create delivery challan for remaining items"
+                                    >
+                                      <span>🚚</span>
+                                      <span>Challan</span>
+                                    </button>
+
+                                    {/* 4. Edit Quotation */}
+                                    <button
+                                      type="button"
+                                      onClick={() => openSavedQuote(meta.quoteKey)}
+                                      className="px-3 py-1.5 border border-neutral-300 bg-white hover:bg-neutral-100 text-neutral-800 font-semibold text-xs rounded-lg shadow-2xs cursor-pointer flex items-center gap-1 transition-all"
+                                      title="Open in Quotation Builder"
+                                    >
+                                      <span>✏️</span>
+                                      <span>Edit</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-[#e4e5e7] shadow-sm">
-                  <div className="text-xs text-[#7c828b] font-medium">Catalog Fixtures</div>
-                  <div className="text-2xl font-extrabold mt-1">{products.length}</div>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-[#e4e5e7] shadow-sm">
-                  <div className="text-xs text-[#7c828b] font-medium">Cash In-Hand</div>
-                  <div
-                    className="text-2xl font-extrabold mt-1 transition-colors"
-                    style={{ color: activeBranch.theme.accentColor }}
-                  >
-                    {formatInr(cashEntries.reduce((s, c) => s + (Number(c.amt) || 0), 0))}
-                  </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Analytics Charts: Monthly Total Sales Trend Line & Category Distribution */}
               <DashboardCharts savedQuotes={savedQuotes} products={products} />
@@ -4632,7 +5109,7 @@ function StudioQuotationApp() {
                                   <span>Edit</span>
                                 </button>
 
-                                {/* 2. Record Advance / Payment */}
+                                {/* 2. Payment */}
                                 <button
                                   type="button"
                                   onClick={() => handleOpenRecordPayment(q, 'add')}
@@ -4669,21 +5146,7 @@ function StudioQuotationApp() {
                                   </span>
                                 </button>
 
-                                {/* 4. Save as PDF */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    openSavedQuote(name);
-                                    setTimeout(() => window.print(), 300);
-                                  }}
-                                  className="px-3 py-1.5 bg-[#170e08] hover:bg-black text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs"
-                                  title="Print or Save quotation directly as PDF file"
-                                >
-                                  <span>🖨️</span>
-                                  <span>PDF</span>
-                                </button>
-
-                                {/* 5. More Options */}
+                                {/* 4. More Options (Exports, Full A4 PDF Preview, Excel, WhatsApp, Client Link, Delete) */}
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -4691,7 +5154,7 @@ function StudioQuotationApp() {
                                     setShowExportModal(true);
                                   }}
                                   className="px-3 py-1.5 bg-white hover:bg-neutral-100 text-neutral-800 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all border border-neutral-300 shadow-2xs"
-                                  title="More Options (Preview Full A4, Excel .xlsx, WhatsApp, Client Link, Delete)"
+                                  title="More Options (Full Page A4 PDF, Excel .xlsx, WhatsApp, Client View Link, Delete)"
                                 >
                                   <span>📂</span>
                                   <span>More Options</span>
@@ -4699,6 +5162,7 @@ function StudioQuotationApp() {
 
                                 {/* Quick Delete */}
                                 <button
+                                  type="button"
                                   onClick={e => {
                                     e.stopPropagation();
                                     deleteSavedQuote(name);
@@ -6151,7 +6615,7 @@ function StudioQuotationApp() {
                       type="text"
                       value={bankTxSearch}
                       onChange={e => setBankTxSearch(e.target.value)}
-                      placeholder="Search by client, quote #, UTR / receipt #..."
+                      placeholder="Search by quotation name, client, quote #, UTR / receipt #..."
                       className="w-full pl-8 pr-7 py-1.5 bg-white border border-gray-300 rounded-lg text-xs outline-none focus:border-[#7b3f22]"
                     />
                     <span className="absolute left-2.5 top-2 text-gray-400 text-xs">🔍</span>
@@ -6177,13 +6641,19 @@ function StudioQuotationApp() {
                       if (bankTxFilter === 'pending' && tx.verified) return false;
                       if (bankTxSearch.trim()) {
                         const q = bankTxSearch.toLowerCase().trim();
+                        // Find matching quotation by quoteNum to search by quote name
+                        const linkedQuote = tx.quoteNum
+                          ? Object.values(savedQuotes).find(sq => sq.quoteNum === tx.quoteNum)
+                          : undefined;
                         const pool = [
                           tx.description,
                           tx.client,
                           tx.quoteNum,
                           tx.referenceNo,
                           tx.receiptNumber,
-                          tx.mode
+                          tx.mode,
+                          linkedQuote?.name,
+                          linkedQuote?.client
                         ]
                           .filter(Boolean)
                           .join(' ')
@@ -10189,6 +10659,45 @@ function StudioQuotationApp() {
         }}
         onOpenPaymentModal={quote => handleOpenRecordPayment(quote)}
         onShowToast={showToast}
+      />
+
+      {/* 14. PENDING & OVERDUE NOTIFY CLIENT FOLLOW-UP MODAL */}
+      {showNotifyClientModal && notifyClientTarget && (
+        <NotifyClientModal
+          meta={notifyClientTarget}
+          branch={activeBranch}
+          onClose={() => {
+            setShowNotifyClientModal(false);
+            setNotifyClientTarget(null);
+          }}
+          onShowToast={showToast}
+        />
+      )}
+
+      {/* 15. FIRST-LAUNCH / INSTALLED APP ONBOARDING PROMPT */}
+      <AppWelcomePromptModal
+        isOpen={showWelcomePromptModal}
+        onClose={() => setShowWelcomePromptModal(false)}
+        onStartGuide={() => setShowUsageGuideModal(true)}
+        brandPrimaryColor={activeBranch.theme.primaryColor}
+        brandAccentColor={activeBranch.theme.accentColor}
+      />
+
+      {/* 16. INTERACTIVE 5-STEP APPLICATION USAGE GUIDE ("HOW TO USE APP") */}
+      <AppUsageGuideModal
+        isOpen={showUsageGuideModal}
+        onClose={() => setShowUsageGuideModal(false)}
+        onNavigateView={navigateView}
+        brandPrimaryColor={activeBranch.theme.primaryColor}
+        brandAccentColor={activeBranch.theme.accentColor}
+      />
+
+      {/* 17. OFFICIAL STORE INSTALLATION MODAL (PLAY STORE / APP STORE / PC) */}
+      <DownloadAppModal
+        isOpen={showStoreInstallModal}
+        onClose={() => setShowStoreInstallModal(false)}
+        brandPrimaryColor={activeBranch.theme.primaryColor}
+        brandAccentColor={activeBranch.theme.accentColor}
       />
     </div>
   );
