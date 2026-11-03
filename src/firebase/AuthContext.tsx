@@ -143,7 +143,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return saved as AppRole;
       }
       const prof = getCachedProfile();
-      if (prof.role && ['owner', 'admin', 'sales', 'delivery'].includes(prof.role)) {
+      if (prof?.role && ['owner', 'admin', 'sales', 'delivery'].includes(prof.role)) {
         return prof.role as AppRole;
       }
     } catch {}

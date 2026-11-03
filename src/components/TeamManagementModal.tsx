@@ -63,9 +63,10 @@ const ROLE_DEFINITIONS: Record<
     badgeBg: 'bg-emerald-500/20',
     badgeText: 'text-emerald-300',
     borderColor: 'border-emerald-500/50',
-    summary: 'Architectural quote building, product spec presentation, client negotiation & booking advances.',
+    summary: 'Architectural quote building, product spec presentation, client negotiation, pricing adjustments & booking advances.',
     permissions: [
       'Quotation Builder & Spec Sheets',
+      'Quotation Pricing, Discounts & Margin Adjustments',
       'Client Presentation, PDF & Excel Export',
       'Booking Advance Payment Receipts',
       'Product Catalog & Lighting Fixture Specs',
@@ -86,7 +87,8 @@ const ROLE_DEFINITIONS: Record<
       'On-Delivery Payment Receipts (Cash / UPI)',
       'Site Address & Transporter Details',
       'Client Delivery Sign-Off Acknowledgement',
-      '❌ Restricted: Quotation Creation or Price Adjustments',
+      '🔒 Strictly Restricted: Quotation Creation or Price Adjustments',
+      '🔒 Strictly Restricted: Quotation Builder Access (Challans Only)',
       '❌ Restricted: Company Financial Ledgers & Margins'
     ]
   },
@@ -121,6 +123,7 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
   const { company, userProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<'roster' | 'add' | 'matrix'>('roster');
   const [filterRole, setFilterRole] = useState<string>('all');
+  const [filterBranch, setFilterBranch] = useState<string>('all');
   const [pendingRoles, setPendingRoles] = useState<Record<string, AppRole>>({});
   const [isSavingUid, setIsSavingUid] = useState<string | null>(null);
 
@@ -129,12 +132,22 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newRole, setNewRole] = useState<AppRole>('sales');
+  const [newBranch, setNewBranch] = useState<'artelume' | 'artelume-vizag'>(() => {
+    return activeBranch.id === 'artelume-vizag' ? 'artelume-vizag' : 'artelume';
+  });
+  const [newPin, setNewPin] = useState(() => String(Math.floor(1000 + Math.random() * 9000)));
   const [isAdding, setIsAdding] = useState(false);
 
   if (!isOpen) return null;
 
   const handleRoleSelect = (uid: string, role: AppRole) => {
     setPendingRoles(prev => ({ ...prev, [uid]: role }));
+  };
+
+  const handleGenerateNewPin = () => {
+    const pin = String(Math.floor(1000 + Math.random() * 9000));
+    setNewPin(pin);
+    onShowToast(`Generated new 4-digit PIN: ${pin}`);
   };
 
   const handleSaveRole = async (member: CompanyMember) => {
@@ -175,21 +188,36 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
 
   const handleAddNewMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName.trim() || !newEmail.trim()) {
-      onShowToast('Please provide both staff name and email address.');
+    if (!newName.trim() || (!newEmail.trim() && !newPhone.trim())) {
+      onShowToast('Please provide staff name and at least an email or mobile number.');
       return;
     }
 
     setIsAdding(true);
     try {
       const uid = `staff_${Date.now()}`;
+      const branchLabel =
+        newBranch === 'artelume-vizag'
+          ? 'Vizag Studio (Siripuram)'
+          : 'Artè Lume Studio (Hyderabad)';
+
+      const fallbackEmail = newEmail.trim()
+        ? newEmail.trim().toLowerCase()
+        : `${newName.trim().toLowerCase().replace(/\s+/g, '.')}.${newBranch === 'artelume-vizag' ? 'vzg' : 'hyd'}@artelume.com`;
+
+      const generatedInviteCode = `${newBranch === 'artelume-vizag' ? 'VZG' : 'HYD'}-${newRole.toUpperCase().slice(0, 5)}-${newPin.trim() || String(Math.floor(1000 + Math.random() * 9000))}`;
+
       const newMember: CompanyMember = {
         uid,
         displayName: newName.trim(),
-        email: newEmail.trim().toLowerCase(),
+        email: fallbackEmail,
         phone: newPhone.trim() || undefined,
         role: newRole,
-        status: 'invited',
+        pin: newPin.trim() || '1234',
+        inviteCode: generatedInviteCode,
+        assignedBranchId: newBranch,
+        assignedBranchName: branchLabel,
+        status: 'active',
         joinedAt: new Date().toISOString().split('T')[0],
         assignedBy: userProfile?.email || 'artelume3017@gmail.com'
       };
@@ -204,11 +232,12 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
         localStorage.setItem('artelume_team_members', JSON.stringify(nextMembers));
       } catch (e) {}
 
-      onShowToast(`Staff member ${newName.trim()} pre-assigned as ${ROLE_DEFINITIONS[newRole].label}!`);
+      onShowToast(`Staff member ${newName.trim()} assigned to ${branchLabel} with Dedicated Invite Code: ${generatedInviteCode}!`);
       setNewName('');
       setNewEmail('');
       setNewPhone('');
       setNewRole('sales');
+      setNewPin(String(Math.floor(1000 + Math.random() * 9000)));
       setActiveTab('roster');
     } catch (err) {
       console.error(err);
@@ -251,26 +280,68 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
   };
 
   const handleShareInviteWhatsApp = (member?: CompanyMember) => {
-    const code = company?.inviteCode || 'AL-STUDIO';
-    let text = `*Invitation to Join ${company?.name || 'Artè Lume Lighting Studio'} Team*\n\n`;
+    const branchLabel =
+      member?.assignedBranchId === 'artelume-vizag'
+        ? 'Vizag Studio (Siripuram)'
+        : 'Artè Lume Studio (Hyderabad)';
+    const roleLabel = member ? ROLE_DEFINITIONS[member.role]?.label || member.role : 'Studio Staff';
+    const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://artelume.com';
+    const pin = member?.pin || '1234';
+    const inviteCode = member?.inviteCode || `${member?.assignedBranchId === 'artelume-vizag' ? 'VZG' : 'HYD'}-${(member?.role || 'staff').toUpperCase().slice(0, 5)}-${pin}`;
+    const staffId = member?.phone || member?.email || 'Registered ID';
+
+    let text = `🏛️ *ARTÈ LUME ARCHITECTURAL LIGHTING*\n*Official Dedicated Staff Invite & Setup*\n\n`;
     if (member) {
       text += `Hello *${member.displayName}*,\n`;
-      text += `You have been assigned the role: *${ROLE_DEFINITIONS[member.role]?.label || member.role}* at our studio.\n\n`;
+      text += `You have been granted official access to ${branchLabel}!\n\n`;
+      text += `📍 *Assigned Studio:* ${branchLabel}\n`;
+      text += `💼 *Assigned Role:* ${roleLabel}\n`;
+      text += `🔑 *Dedicated Invite Code:* \`${inviteCode}\`\n`;
+      text += `📱 *Staff ID / Mobile:* ${staffId}\n`;
+      text += `🔒 *4-Digit Access PIN:* \`${pin}\`\n\n`;
+      text += `📲 *STEP 1: INSTALL OFFICIAL APP*\n`;
+      text += `Open the link below on your phone or PC and tap *"Install App"*:\n`;
+      text += `👉 ${appUrl}\n\n`;
+      text += `🔑 *STEP 2: LOGIN WITH DEDICATED INVITE CODE*\n`;
+      text += `1. Open the Studio App\n`;
+      text += `2. Select *${branchLabel}*\n`;
+      text += `3. Enter your dedicated invite code: \`${inviteCode}\` (or Mobile & PIN: \`${pin}\`)\n\n`;
+      text += `_Authorized by Studio Director (${userProfile?.email || 'artelume3017@gmail.com'})_`;
     } else {
-      text += `Hello,\nYou have been invited to join the Artè Lume Studio team portal.\n\n`;
+      text += `Hello,\nYou have been invited to join the Studio team portal.\n\n`;
+      text += `🔑 *Studio Join Code:* \`${company?.inviteCode || 'AL-STUDIO'}\`\n`;
+      text += `📱 Access the studio app on your mobile, tablet or PC: ${appUrl}\n\n`;
+      text += `_Authorized by Studio Director (${userProfile?.email || 'artelume3017@gmail.com'})_`;
     }
-    text += `🔑 *Studio Join Code:* \`${code}\`\n`;
-    text += `📱 Access the studio app on your mobile, tablet or PC.\n`;
-    text += `When registering or signing in, enter this join code to automatically connect to our organization with your assigned permissions.\n\n`;
-    text += `_Authorized by Studio Owner (${userProfile?.email || 'artelume3017@gmail.com'})_`;
 
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
 
+  const handleCopyStaffInvite = (member: CompanyMember) => {
+    const branchLabel =
+      member.assignedBranchId === 'artelume-vizag'
+        ? 'Vizag Studio (Siripuram)'
+        : 'Artè Lume Studio (Hyderabad)';
+    const roleLabel = ROLE_DEFINITIONS[member.role]?.label || member.role;
+    const appUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const pin = member.pin || '1234';
+    const inviteCode = member.inviteCode || `${member.assignedBranchId === 'artelume-vizag' ? 'VZG' : 'HYD'}-${member.role.toUpperCase().slice(0, 5)}-${pin}`;
+    const staffId = member.phone || member.email;
+
+    const copyText = `ARTÈ LUME LIGHTING STUDIO - DEDICATED STAFF INVITE\n\nStaff: ${member.displayName}\nStudio: ${branchLabel}\nRole: ${roleLabel}\nDedicated Invite Code: ${inviteCode}\nStaff ID / Mobile: ${staffId}\nSecurity PIN: ${pin}\nApp URL: ${appUrl}\n\n1. Open link on mobile/PC and tap "Install App"\n2. Open app -> Select ${branchLabel} -> Enter Dedicated Invite Code: ${inviteCode} (or PIN: ${pin})`;
+
+    navigator.clipboard.writeText(copyText);
+    onShowToast(`Copied dedicated invite code & credentials for ${member.displayName} (${inviteCode})!`);
+  };
+
   const filteredMembers = members.filter(m => {
-    if (filterRole === 'all') return true;
-    return m.role === filterRole;
+    const roleMatches = filterRole === 'all' || m.role === filterRole;
+    const branchMatches =
+      filterBranch === 'all' ||
+      (filterBranch === 'artelume' && (!m.assignedBranchId || m.assignedBranchId === 'artelume')) ||
+      (filterBranch === 'artelume-vizag' && m.assignedBranchId === 'artelume-vizag');
+    return roleMatches && branchMatches;
   });
 
   return (
@@ -392,33 +463,59 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
           {activeTab === 'roster' && (
             <div className="space-y-4">
               {/* Role filter buttons */}
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                  <span className="text-[#8e7b70] text-[11px] font-bold uppercase tracking-wider mr-1">Filter:</span>
-                  {[
-                    { id: 'all', label: `All Staff (${members.length})` },
-                    { id: 'owner', label: `👑 Owner (${members.filter(m => m.role === 'owner').length})` },
-                    { id: 'admin', label: `🛡️ Admin (${members.filter(m => m.role === 'admin').length})` },
-                    { id: 'sales', label: `💼 Sales (${members.filter(m => m.role === 'sales').length})` },
-                    { id: 'delivery', label: `🚚 Delivery (${members.filter(m => m.role === 'delivery').length})` }
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setFilterRole(tab.id)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
-                        filterRole === tab.id
-                          ? 'bg-[#df9c20] text-[#18110c] font-bold shadow-xs'
-                          : 'bg-[#22150e] text-[#a89588] hover:text-white border border-[#3e271a]'
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
+              {/* Role & Branch filter buttons */}
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                    <span className="text-[#8e7b70] text-[11px] font-bold uppercase tracking-wider mr-1">Role:</span>
+                    {[
+                      { id: 'all', label: `All Roles (${members.length})` },
+                      { id: 'owner', label: `👑 Owner (${members.filter(m => m.role === 'owner').length})` },
+                      { id: 'admin', label: `🛡️ Admin (${members.filter(m => m.role === 'admin').length})` },
+                      { id: 'sales', label: `💼 Sales (${members.filter(m => m.role === 'sales').length})` },
+                      { id: 'delivery', label: `🚚 Delivery (${members.filter(m => m.role === 'delivery').length})` }
+                    ].map(tab => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setFilterRole(tab.id)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                          filterRole === tab.id
+                            ? 'bg-[#df9c20] text-[#18110c] font-bold shadow-xs'
+                            : 'bg-[#22150e] text-[#a89588] hover:text-white border border-[#3e271a]'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="text-[11px] text-[#8e7b70]">
+                    🔒 Non-owner logins are strictly locked to their assigned branch &amp; role.
+                  </div>
                 </div>
 
-                <div className="text-[11px] text-[#8e7b70]">
-                  🔒 Non-owner logins will be locked strictly to their assigned role.
+                {/* 2-Branch Filter Row */}
+                <div className="flex flex-wrap items-center gap-1.5 text-xs pt-0.5">
+                  <span className="text-[#8e7b70] text-[11px] font-bold uppercase tracking-wider mr-1">Branch:</span>
+                  {[
+                    { id: 'all', label: 'All Branches' },
+                    { id: 'artelume', label: '🏛️ Branch 1: Hyderabad' },
+                    { id: 'artelume-vizag', label: '🌊 Branch 2: Vizag' }
+                  ].map(b => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => setFilterBranch(b.id)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                        filterBranch === b.id
+                          ? 'bg-[#7b3f22] text-white font-bold border border-amber-400/50 shadow-xs'
+                          : 'bg-[#18110c] text-[#a89588] hover:text-white border border-[#3e271a]'
+                      }`}
+                    >
+                      {b.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -429,6 +526,7 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
                   const hasChanged = currentSelectedRole !== member.role;
                   const roleDef = ROLE_DEFINITIONS[currentSelectedRole] || ROLE_DEFINITIONS.sales;
                   const isOwner = member.role === 'owner' || member.email === 'artelume3017@gmail.com';
+                  const isVizag = member.assignedBranchId === 'artelume-vizag';
 
                   return (
                     <div
@@ -457,13 +555,35 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
                           </div>
 
                           <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <span className="font-bold text-sm text-[#f5eee6]">{member.displayName}</span>
                               <span
                                 className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${roleDef.badgeBg} ${roleDef.badgeText} border ${roleDef.borderColor}`}
                               >
                                 {roleDef.label}
                               </span>
+
+                              {/* Studio Location Badge */}
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                  isVizag
+                                    ? 'bg-amber-600/20 text-amber-300 border-amber-600/40'
+                                    : 'bg-orange-700/20 text-orange-200 border-orange-700/40'
+                                }`}
+                              >
+                                {isVizag ? '🌊 Vizag Studio' : '🏛️ Artè Lume (Hyderabad)'}
+                              </span>
+
+                              {/* Dedicated Invite Code Badge */}
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#df9c20]/15 text-[#df9c20] border border-[#df9c20]/40">
+                                🔑 Code: {member.inviteCode || (isVizag ? 'VZG' : 'HYD') + '-' + member.role.toUpperCase().slice(0, 5) + '-' + (member.pin || '1234')}
+                              </span>
+
+                              {/* Security PIN Badge */}
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-black/60 text-[#df9c20] border border-[#df9c20]/40">
+                                🔒 PIN: {member.pin || '1234'}
+                              </span>
+
                               {isOwner && (
                                 <span className="text-[10px] bg-amber-950/60 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded font-mono">
                                   Primary Owner
@@ -486,19 +606,19 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
                         </div>
 
                         {/* Role Selector & Save Action */}
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0 self-end md:self-center">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0 self-end md:self-center">
                           {/* Role Dropdown */}
                           <div className="relative">
                             <select
                               value={currentSelectedRole}
                               disabled={isOwner && member.email === 'artelume3017@gmail.com'}
                               onChange={e => handleRoleSelect(member.uid, e.target.value as AppRole)}
-                              className="w-full sm:w-auto bg-[#18110c] border border-[#4a3022] hover:border-[#df9c20] text-xs font-bold text-[#f5eee6] rounded-lg px-3 py-2 outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="w-full sm:w-auto bg-[#18110c] border border-[#4a3022] hover:border-[#df9c20] text-xs font-bold text-[#f5eee6] rounded-lg px-2.5 py-1.5 outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              <option value="owner">👑 Owner (Full Studio Control)</option>
-                              <option value="admin">🛡️ Administrator (Accounts &amp; Ledger)</option>
-                              <option value="sales">💼 Sales Person (Quotes &amp; Advance)</option>
-                              <option value="delivery">🚚 Delivery Person (Site Logistics)</option>
+                              <option value="owner">👑 Owner</option>
+                              <option value="admin">🛡️ Administrator</option>
+                              <option value="sales">💼 Sales Person</option>
+                              <option value="delivery">🚚 Delivery Person</option>
                             </select>
                           </div>
 
@@ -508,21 +628,33 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
                               type="button"
                               onClick={() => handleSaveRole(member)}
                               disabled={isSavingUid === member.uid}
-                              className="px-3.5 py-2 bg-[#df9c20] hover:bg-[#efa624] text-[#18110c] text-xs font-black rounded-lg transition-colors cursor-pointer shadow-sm flex items-center justify-center gap-1.5 animate-pulse"
+                              className="px-3 py-1.5 bg-[#df9c20] hover:bg-[#efa624] text-[#18110c] text-xs font-black rounded-lg transition-colors cursor-pointer shadow-sm flex items-center justify-center gap-1 animate-pulse"
                             >
                               <span>💾</span>
-                              <span>{isSavingUid === member.uid ? 'Saving...' : 'Apply Role'}</span>
+                              <span>{isSavingUid === member.uid ? 'Saving...' : 'Save'}</span>
                             </button>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleShareInviteWhatsApp(member)}
-                              className="px-3 py-2 bg-[#2a1a12] hover:bg-[#382318] text-[#d8c7b8] hover:text-white border border-[#4a3022] text-xs font-semibold rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1"
-                              title="Send WhatsApp login invite to staff member"
-                            >
-                              <span>📱</span>
-                              <span>Invite</span>
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleShareInviteWhatsApp(member)}
+                                className="px-2.5 py-1.5 bg-[#128c7e] hover:bg-[#075e54] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-sm"
+                                title="Send WhatsApp login invite to staff member"
+                              >
+                                <span>📱</span>
+                                <span className="hidden sm:inline">WhatsApp</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleCopyStaffInvite(member)}
+                                className="px-2.5 py-1.5 bg-[#2a1a12] hover:bg-[#382318] text-[#d8c7b8] hover:text-white border border-[#4a3022] text-xs font-semibold rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1"
+                                title="Copy login credentials (PIN, Branch & URL)"
+                              >
+                                <span>📋</span>
+                                <span className="hidden sm:inline">Copy PIN</span>
+                              </button>
+                            </div>
                           )}
 
                           {/* Delete Member (Non-owner only) */}
@@ -530,7 +662,7 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
                             <button
                               type="button"
                               onClick={() => handleDeleteMember(member)}
-                              className="p-2 text-red-400 hover:text-red-300 hover:bg-red-950/40 rounded-lg border border-transparent hover:border-red-500/30 transition-colors cursor-pointer text-xs"
+                              className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-950/40 rounded-lg border border-transparent hover:border-red-500/30 transition-colors cursor-pointer text-xs"
                               title="Remove staff member"
                             >
                               🗑️
@@ -551,14 +683,50 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
               <div>
                 <h3 className="font-serif font-bold text-base text-[#f5eee6] flex items-center gap-2">
                   <span>➕</span>
-                  <span>Pre-Assign Staff Role &amp; Send Studio Invite</span>
+                  <span>Pre-Assign Staff Member &amp; Generate Access PIN</span>
                 </h3>
                 <p className="text-xs text-[#a89588] mt-1">
-                  When this staff member registers or signs in with this email, their account will automatically inherit the assigned role without allowing them to modify permissions.
+                  Assign the staff member to Branch 1 (Hyderabad) or Branch 2 (Vizag). They will use their mobile number and 4-digit PIN to sign in from their phone or PC.
                 </p>
               </div>
 
               <form onSubmit={handleAddNewMember} className="space-y-4">
+                {/* Studio Assignment Selection */}
+                <div>
+                  <label className="block text-[11px] uppercase font-bold text-[#a89588] tracking-wider mb-1.5">
+                    Select Studio Assignment *
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setNewBranch('artelume')}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        newBranch === 'artelume'
+                          ? 'bg-[#331c10] border-[#df9c20] text-white shadow-md'
+                          : 'bg-[#18110c] border-[#4a3022] text-[#9a8677] hover:text-stone-300'
+                      }`}
+                    >
+                      <div className="text-base">🏛️</div>
+                      <div className="font-bold text-xs mt-1">Artè Lume Studio (Hyderabad)</div>
+                      <div className="text-[10px] text-[#df9c20] font-mono mt-0.5">Jubilee Hills • Quote Prefix: AL-HYD</div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setNewBranch('artelume-vizag')}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        newBranch === 'artelume-vizag'
+                          ? 'bg-[#331c10] border-[#df9c20] text-white shadow-md'
+                          : 'bg-[#18110c] border-[#4a3022] text-[#9a8677] hover:text-stone-300'
+                      }`}
+                    >
+                      <div className="text-base">🌊</div>
+                      <div className="font-bold text-xs mt-1">Vizag Studio (Siripuram)</div>
+                      <div className="text-[10px] text-[#df9c20] font-mono mt-0.5">Siripuram • Quote Prefix: AL-VZG</div>
+                    </button>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[11px] uppercase font-bold text-[#a89588] tracking-wider mb-1.5">
@@ -576,33 +744,20 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
 
                   <div>
                     <label className="block text-[11px] uppercase font-bold text-[#a89588] tracking-wider mb-1.5">
-                      Work / Login Email Address *
+                      Mobile Number (WhatsApp) *
                     </label>
                     <input
-                      type="email"
+                      type="tel"
                       required
-                      value={newEmail}
-                      onChange={e => setNewEmail(e.target.value)}
-                      placeholder="e.g. ramesh@artelume.com"
+                      value={newPhone}
+                      onChange={e => setNewPhone(e.target.value)}
+                      placeholder="e.g. 9849012345"
                       className="w-full bg-[#18110c] border border-[#4a3022] focus:border-[#df9c20] text-sm text-[#f5eee6] rounded-lg px-3.5 py-2.5 outline-none transition-colors"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[11px] uppercase font-bold text-[#a89588] tracking-wider mb-1.5">
-                      Mobile Number (WhatsApp)
-                    </label>
-                    <input
-                      type="tel"
-                      value={newPhone}
-                      onChange={e => setNewPhone(e.target.value)}
-                      placeholder="e.g. +91 98490 00000"
-                      className="w-full bg-[#18110c] border border-[#4a3022] focus:border-[#df9c20] text-sm text-[#f5eee6] rounded-lg px-3.5 py-2.5 outline-none transition-colors"
-                    />
-                  </div>
-
                   <div>
                     <label className="block text-[11px] uppercase font-bold text-[#a89588] tracking-wider mb-1.5">
                       Assigned Role Tier *
@@ -612,11 +767,35 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
                       onChange={e => setNewRole(e.target.value as AppRole)}
                       className="w-full bg-[#18110c] border border-[#4a3022] focus:border-[#df9c20] text-sm font-bold text-[#df9c20] rounded-lg px-3.5 py-2.5 outline-none transition-colors cursor-pointer"
                     >
-                      <option value="admin">🛡️ Administrator (Advance Payments, Accounts &amp; Ledger)</option>
                       <option value="sales">💼 Sales Person (Quotations, Spec Sheets &amp; Advance)</option>
                       <option value="delivery">🚚 Delivery Person (Site Logistics &amp; Challans)</option>
+                      <option value="admin">🛡️ Administrator (Advance Payments, Accounts &amp; Ledger)</option>
                       <option value="owner">👑 Studio Owner (Full Control &amp; P&amp;L)</option>
                     </select>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[11px] uppercase font-bold text-[#a89588] tracking-wider">
+                        4-Digit Access PIN *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleGenerateNewPin}
+                        className="text-[10px] font-bold text-[#df9c20] hover:underline cursor-pointer"
+                      >
+                        ⚡ Randomize PIN
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      required
+                      value={newPin}
+                      onChange={e => setNewPin(e.target.value.replace(/[^0-9]/g, ''))}
+                      placeholder="4821"
+                      className="w-full bg-[#18110c] border border-[#df9c20]/60 focus:border-[#df9c20] text-base font-mono font-bold tracking-widest text-[#df9c20] rounded-lg px-3.5 py-2 outline-none transition-colors"
+                    />
                   </div>
                 </div>
 
@@ -655,7 +834,7 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
                     className="px-5 py-2 bg-[#df9c20] hover:bg-[#efa624] text-[#18110c] font-bold text-xs rounded-lg transition-colors cursor-pointer shadow-sm disabled:opacity-50 flex items-center gap-2"
                   >
                     <span>➕</span>
-                    <span>{isAdding ? 'Registering...' : 'Pre-Assign & Add to Team'}</span>
+                    <span>{isAdding ? 'Registering...' : 'Assign Staff & Generate Credentials'}</span>
                   </button>
                 </div>
               </form>

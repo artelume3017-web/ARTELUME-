@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useAuth } from '../firebase/AuthContext';
-import { PWAInstallButton } from './PWAInstallButton';
 
 interface StudioAccountModalProps {
   isOpen: boolean;
@@ -15,40 +14,10 @@ export const StudioAccountModal: React.FC<StudioAccountModalProps> = ({
   onShowToast,
   onOpenTeamModal
 }) => {
-  const { user, userProfile, company, currentRole, switchRole, signOut, switchCompanyCode, loading } = useAuth();
-  const [switchCodeInput, setSwitchCodeInput] = useState('');
-  const [showSwitchForm, setShowSwitchForm] = useState(false);
-  const [switchError, setSwitchError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { user, userProfile, company, currentRole, switchRole, signOut, loading } = useAuth();
   const [confirmSignOut, setConfirmSignOut] = useState(false);
 
   if (!isOpen) return null;
-
-  const handleCopyInviteCode = () => {
-    if (company?.inviteCode) {
-      navigator.clipboard.writeText(company.inviteCode);
-      onShowToast(`Copied Team Join Code: ${company.inviteCode}`);
-    }
-  };
-
-  const handleSwitchCompany = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!switchCodeInput.trim()) return;
-    setSwitchError(null);
-    setIsSubmitting(true);
-    try {
-      await switchCompanyCode(switchCodeInput.trim());
-      onShowToast(`Successfully connected to new Studio organization!`);
-      setShowSwitchForm(false);
-      setSwitchCodeInput('');
-      onClose();
-    } catch (err: any) {
-      console.error(err);
-      setSwitchError(err.message || 'Failed to switch studio. Check the invite code.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const handleExecuteSignOut = async () => {
     try {
@@ -87,7 +56,7 @@ export const StudioAccountModal: React.FC<StudioAccountModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="text-[#9a8576] hover:text-white p-1.5 rounded-lg hover:bg-white/5 cursor-pointer text-base"
+            className="text-[#9a8473] hover:text-white p-1.5 rounded-lg hover:bg-white/5 cursor-pointer text-base"
           >
             ✕
           </button>
@@ -96,7 +65,7 @@ export const StudioAccountModal: React.FC<StudioAccountModalProps> = ({
         {/* Content Body */}
         <div className="p-5 space-y-4">
           {/* Active Company Studio Information */}
-          <div className="bg-[#22150e] border border-[#4a3022] rounded-xl p-3.5 space-y-2.5">
+          <div className="bg-[#22150e] border border-[#4a3022] rounded-xl p-3.5 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase tracking-wider font-bold text-[#df9c20]">
                 Active Studio Organization
@@ -112,26 +81,6 @@ export const StudioAccountModal: React.FC<StudioAccountModalProps> = ({
               </div>
               <span className="text-xs font-mono text-stone-400">Prefix: {company?.quotePrefix || 'AL'}</span>
             </div>
-
-            {/* 6-Digit Join Code Box */}
-            {company?.inviteCode && (
-              <div className="pt-2 border-t border-[#3e271a] flex items-center justify-between bg-[#190e08] p-2.5 rounded-lg">
-                <div>
-                  <div className="text-[9.5px] text-[#a89588] uppercase tracking-wider">Multi-Device Join Code</div>
-                  <div className="font-mono font-bold text-base text-[#df9c20] tracking-widest">
-                    {company.inviteCode}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCopyInviteCode}
-                  className="px-3 py-1.5 bg-[#7b3f22] hover:bg-[#914a28] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-sm"
-                >
-                  <span>📋</span>
-                  <span>Copy Code</span>
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Team Staff & Role Assignment for Studio Owner */}
@@ -249,56 +198,6 @@ export const StudioAccountModal: React.FC<StudioAccountModalProps> = ({
               </div>
             </div>
           )}
-
-          {/* Switch Organization Form Toggle */}
-          {!showSwitchForm ? (
-            <button
-              type="button"
-              onClick={() => setShowSwitchForm(true)}
-              className="w-full py-2 px-3 bg-[#22150e] hover:bg-[#2c1c13] border border-[#4a3022] text-[#c7b7aa] hover:text-white rounded-lg text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer"
-            >
-              <span className="flex items-center gap-2">
-                <span>🔄</span>
-                <span>Switch Studio or Join Another Organization</span>
-              </span>
-              <span>›</span>
-            </button>
-          ) : (
-            <form onSubmit={handleSwitchCompany} className="p-3 bg-[#241710] border border-[#df9c20]/40 rounded-xl space-y-2.5">
-              <div className="text-xs font-bold text-[#df9c20] flex items-center justify-between">
-                <span>Enter 6-digit Invite Code</span>
-                <button
-                  type="button"
-                  onClick={() => setShowSwitchForm(false)}
-                  className="text-stone-400 hover:text-white text-[11px]"
-                >
-                  Cancel
-                </button>
-              </div>
-              <input
-                type="text"
-                value={switchCodeInput}
-                onChange={e => setSwitchCodeInput(e.target.value.toUpperCase())}
-                placeholder="e.g. AL-8429"
-                className="w-full bg-[#18110c] border border-[#4a3022] rounded-lg px-3 py-2 text-xs font-mono font-bold text-[#df9c20] tracking-wider outline-none focus:border-[#df9c20]"
-              />
-              {switchError && (
-                <div className="text-[11px] text-red-300 bg-red-950/50 p-1.5 rounded">{switchError}</div>
-              )}
-              <button
-                type="submit"
-                disabled={isSubmitting || !switchCodeInput.trim()}
-                className="w-full py-2 bg-[#df9c20] hover:bg-[#efa624] text-[#18110c] font-bold text-xs rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-              >
-                {isSubmitting ? 'Verifying & Switching...' : 'Switch to this Studio'}
-              </button>
-            </form>
-          )}
-
-          {/* Install Mobile & PC Application */}
-          <div className="pt-1">
-            <PWAInstallButton variant="sidebar" primaryColor="#7b3f22" accentColor="#df9c20" />
-          </div>
 
           {/* Device & Session Info */}
           <div className="text-[11px] text-[#8e7b70] bg-[#140c08] p-2.5 rounded-lg border border-[#3e271a] flex items-center justify-between">

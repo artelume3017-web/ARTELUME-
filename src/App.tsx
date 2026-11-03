@@ -457,24 +457,29 @@ function StudioQuotationApp() {
     return () => unsub();
   }, [company?.id]);
 
-  // Enforce Owner-assigned role on staff login accounts
+  // Enforce Owner-assigned role & branch on staff login accounts
   useEffect(() => {
     if (!user?.email) return;
     const isOwnerAccount =
-      user.email === 'artelume3017@gmail.com' || (company?.ownerId && company.ownerId === user.uid);
+      user.email === 'artelume3017@gmail.com' || (company?.ownerId && company.ownerId === user.uid) || currentRole === 'owner';
     if (isOwnerAccount) {
-      // Primary owner retains master authority
+      // Primary owner retains master authority over all branches
       return;
     }
 
-    // Look up assigned role in studio roster
+    // Look up assigned role and branch in studio roster
     const assigned = teamMembers.find(
       m => m.email.toLowerCase() === user.email?.toLowerCase() || m.uid === user.uid
     );
-    if (assigned && assigned.role && assigned.role !== currentRole) {
-      switchRole(assigned.role);
+    if (assigned) {
+      if (assigned.role && assigned.role !== currentRole) {
+        switchRole(assigned.role);
+      }
+      if (assigned.assignedBranchId && assigned.assignedBranchId !== activeBranchId) {
+        switchBranch(assigned.assignedBranchId);
+      }
     }
-  }, [user?.email, user?.uid, company?.ownerId, teamMembers, currentRole, switchRole]);
+  }, [user?.email, user?.uid, company?.ownerId, teamMembers, currentRole, switchRole, activeBranchId]);
 
   // Gating / Role Redirection: If Delivery person logs in, auto land them on Delivery Challans portal
   useEffect(() => {
@@ -970,7 +975,16 @@ function StudioQuotationApp() {
 
   const filteredSavedQuotes = useMemo(() => {
     const query = quoteSearchQuery.toLowerCase().trim();
-    const entries = Object.entries(savedQuotes);
+    let entries = Object.entries(savedQuotes);
+
+    // Strict Branch Isolation: Staff members only see quotations for their assigned branch
+    if (currentRole !== 'owner') {
+      entries = entries.filter(([_, q]) => {
+        const qBranchId = q.branchId || (q.quoteNum?.startsWith('AL-VZG') ? 'artelume-vizag' : 'artelume');
+        return qBranchId === activeBranchId;
+      });
+    }
+
     if (!query) return entries;
     return entries.filter(([name, q]) => {
       const projectTitle = (name || '').toLowerCase();
@@ -978,7 +992,15 @@ function StudioQuotationApp() {
       const quoteNumber = (q.quoteNum || '').toLowerCase();
       return projectTitle.includes(query) || clientName.includes(query) || quoteNumber.includes(query);
     });
-  }, [savedQuotes, quoteSearchQuery]);
+  }, [savedQuotes, quoteSearchQuery, currentRole, activeBranchId]);
+
+  const displayedDeliveryChallans = useMemo(() => {
+    if (currentRole === 'owner') return deliveryChallans;
+    return deliveryChallans.filter(c => {
+      const cBranchId = c.branchId || (c.challanNum?.includes('VZG') ? 'artelume-vizag' : 'artelume');
+      return cBranchId === activeBranchId;
+    });
+  }, [deliveryChallans, currentRole, activeBranchId]);
 
 
   const showToast = (msg: string) => {
@@ -3754,32 +3776,45 @@ function StudioQuotationApp() {
             <span>{activeBranch.location}</span>
           </div>
 
-          {/* Quick Branch Switcher Segmented Control (Only when multiple branches exist) */}
-          {branches.length > 1 && (
-            <div className="mt-3 bg-black/50 border border-white/10 rounded-lg p-1 flex items-center gap-1">
-              {branches.map(b => {
-                const isSelected = b.id === activeBranchId;
-                return (
-                  <button
-                    key={b.id}
-                    type="button"
-                    onClick={() => switchBranch(b.id)}
-                    className={`flex-1 py-1 px-1.5 rounded text-[11px] font-semibold transition-all cursor-pointer truncate text-center ${
-                      isSelected ? 'text-white shadow-sm font-bold' : 'text-[#baaaa0] hover:text-white hover:bg-white/5'
-                    }`}
-                    style={isSelected ? { backgroundColor: b.theme.primaryColor } : {}}
-                    title={`Switch to ${b.name}`}
-                  >
-                    {b.id === 'artelume' ? '🏛️ Artè Lume' : b.name}
-                  </button>
-                );
-              })}
+          {/* Branch Control: Owner can toggle between Branch 1 & Branch 2, Staff is locked */}
+          {currentRole === 'owner' ? (
+            branches.length > 1 && (
+              <div className="mt-3 bg-black/50 border border-white/10 rounded-lg p-1 flex items-center gap-1">
+                {branches.map(b => {
+                  const isSelected = b.id === activeBranchId;
+                  const label = b.id === 'artelume' ? '🏛️ Branch 1: Hyd' : '🌊 Branch 2: Vizag';
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => switchBranch(b.id)}
+                      className={`flex-1 py-1 px-1.5 rounded text-[11px] font-semibold transition-all cursor-pointer truncate text-center ${
+                        isSelected ? 'text-white shadow-sm font-bold' : 'text-[#baaaa0] hover:text-white hover:bg-white/5'
+                      }`}
+                      style={isSelected ? { backgroundColor: b.theme.primaryColor } : {}}
+                      title={`Switch active studio branch to ${b.name}`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            <div className="mt-2.5 bg-black/60 border border-amber-600/40 rounded-lg py-1.5 px-2.5 flex items-center justify-between text-xs">
+              <span className="text-[10px] text-amber-300 font-bold uppercase tracking-wider flex items-center gap-1">
+                <span>🔒</span>
+                <span>Assigned:</span>
+              </span>
+              <span className="font-bold text-[11px] text-white">
+                {activeBranchId === 'artelume-vizag' ? '🌊 Branch 2: Vizag' : '🏛️ Branch 1: Hyderabad'}
+              </span>
             </div>
           )}
         </div>
 
-        {/* Primary Action Button & Install Button */}
-        <div className="px-4 py-2 space-y-2">
+        {/* Primary Action Button */}
+        <div className="px-4 py-2">
           <button
             onClick={startNewQuote}
             className="w-full flex items-center justify-center gap-2 text-white py-2.5 px-4 rounded-lg font-semibold text-sm hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer shadow-lg"
@@ -3792,34 +3827,11 @@ function StudioQuotationApp() {
             <span className="text-lg leading-none">+</span>
             <span>New Quotation</span>
           </button>
-
-          {/* Download & Install PWA Button for Mobile & PC */}
-          <PWAInstallButton
-            variant="sidebar"
-            primaryColor={activeBranch.theme.primaryColor}
-            accentColor={activeBranch.theme.accentColor}
-          />
         </div>
 
         {/* Navigation Items */}
         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 text-sm font-medium">
           <div className="text-[10px] uppercase tracking-wider text-[#9a8473] font-bold px-3 py-2">Navigation</div>
-
-          {/* Interactive User Guide Walkthrough Launcher */}
-          <button
-            type="button"
-            onClick={() => setShowUsageGuideModal(true)}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all cursor-pointer text-left bg-gradient-to-r from-amber-500/15 to-transparent hover:from-amber-500/25 border border-amber-500/35 text-amber-200 shadow-xs mb-2"
-            title="Interactive 5-step walkthrough guide on how to use ARTÈ LUME"
-          >
-            <div className="flex items-center gap-2.5">
-              <span className="text-base">📖</span>
-              <span className="text-xs font-bold text-[#f5eee6]">How to Use App</span>
-            </div>
-            <span className="text-[9.5px] font-black px-1.5 py-0.2 rounded bg-amber-400 text-neutral-950 uppercase tracking-wider">
-              Guide
-            </span>
-          </button>
 
           <button
             onClick={() => navigateView('dashboard')}
@@ -3860,7 +3872,7 @@ function StudioQuotationApp() {
               <span>Saved Quotations</span>
             </div>
             <span className="text-xs bg-black/40 border border-white/10 px-2 py-0.5 rounded-full text-[#9e8d7f]">
-              {Object.keys(savedQuotes).length}
+              {filteredSavedQuotes.length}
             </span>
           </button>
 
@@ -3904,7 +3916,7 @@ function StudioQuotationApp() {
               <span>Delivery Challans</span>
             </div>
             <span className="text-xs bg-black/40 border border-white/10 px-2 py-0.5 rounded-full text-[#9e8d7f]">
-              {deliveryChallans.length}
+              {displayedDeliveryChallans.length}
             </span>
           </button>
 
@@ -4079,48 +4091,12 @@ function StudioQuotationApp() {
           )}
         </div>
 
-        {/* Multi-Device Team Invite Code Badge */}
-        {company?.inviteCode && (
-          <div
-            className="mx-3 my-2 p-2.5 rounded-lg flex items-center justify-between text-xs border"
-            style={{
-              backgroundColor: 'rgba(0, 0, 0, 0.35)',
-              borderColor: `${activeBranch.theme.accentColor}40`
-            }}
-          >
-            <div className="min-w-0 pr-1">
-              <div
-                className="text-[9.5px] font-bold uppercase tracking-wider flex items-center gap-1"
-                style={{ color: activeBranch.theme.accentColor }}
-              >
-                <span>🔑</span>
-                <span>Team Join Code</span>
-              </div>
-              <div className="font-mono font-black text-[#f5eee6] tracking-widest text-xs">
-                {company.inviteCode}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                navigator.clipboard.writeText(company.inviteCode);
-                showToast(`Copied Studio Join Code "${company.inviteCode}"!`);
-              }}
-              className="px-2 py-1 text-white text-[10px] font-bold rounded cursor-pointer transition-colors shrink-0 shadow-sm"
-              style={{ backgroundColor: activeBranch.theme.primaryColor }}
-              title="Copy 6-digit Join Code for other devices/phones"
-            >
-              Copy
-            </button>
-          </div>
-        )}
-
         {/* User Profile & Sign Out Footer */}
         <div className="p-3.5 bg-black/40 border-t border-white/5 flex flex-col gap-2.5">
           <div
             onClick={() => setShowAccountModal(true)}
             className="flex items-center justify-between p-1 rounded-lg hover:bg-white/5 cursor-pointer transition-colors"
-            title="Click to manage account, devices &amp; sign out"
+            title="Click to view account"
           >
             <div className="flex items-center gap-2.5 min-w-0">
               <div
@@ -4157,12 +4133,19 @@ function StudioQuotationApp() {
 
           <button
             type="button"
-            onClick={() => setShowAccountModal(true)}
-            className="w-full flex items-center justify-center gap-2 py-1.5 px-2 bg-red-950/40 hover:bg-red-900/60 border border-red-500/20 text-red-200 rounded text-[11px] font-semibold transition-colors cursor-pointer"
-            title={`Manage account & Sign out (${user?.email})`}
+            onClick={async () => {
+              try {
+                await signOut();
+                showToast('Signed out successfully.');
+              } catch (e) {
+                console.error(e);
+              }
+            }}
+            className="w-full flex items-center justify-center gap-2 py-2 px-2 bg-red-950/40 hover:bg-red-900/60 border border-red-500/20 text-red-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+            title={`Sign out (${user?.email})`}
           >
             <span>🚪</span>
-            <span>Sign Out Options</span>
+            <span>Sign Out</span>
           </button>
         </div>
       </aside>
@@ -4186,8 +4169,9 @@ function StudioQuotationApp() {
       {/* Main Content Area */}
       <div className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'ml-0'} flex flex-col min-w-0 ${sidebarOpen ? 'max-md:pointer-events-none' : ''}`}>
         {/* Top Floating Bar for Mobile / Sidebar Toggler */}
+        {/* Top Floating Bar / Header: Only Company Name & Logout/Login Button */}
         <div
-          className="text-white px-4 py-2 flex items-center justify-between no-print gap-3 transition-colors duration-300 shadow-xs"
+          className="text-white px-4 py-2.5 flex items-center justify-between no-print gap-3 transition-colors duration-300 shadow-sm"
           style={{
             backgroundColor: getDarkTone(activeBranch.theme.primaryColor, 0.22),
             borderBottom: `1px solid ${activeBranch.theme.primaryColor}50`
@@ -4199,12 +4183,12 @@ function StudioQuotationApp() {
                 e.stopPropagation();
                 setSidebarOpen(prev => !prev);
               }}
-              className="p-1 hover:bg-white/10 rounded cursor-pointer shrink-0"
+              className="p-1 hover:bg-white/10 rounded cursor-pointer shrink-0 text-base"
               title="Toggle Sidebar"
             >
               ☰
             </button>
-            <div className="flex items-center gap-2 min-w-0 truncate">
+            <div className="flex items-center gap-2.5 min-w-0 truncate">
               {activeBranch.logoUrl && (
                 <img
                   src={activeBranch.logoUrl}
@@ -4213,136 +4197,42 @@ function StudioQuotationApp() {
                 />
               )}
               <span
-                className="font-serif tracking-wider font-bold text-sm truncate"
+                className="font-serif tracking-wider font-bold text-base truncate"
                 style={{ color: activeBranch.theme.accentColor }}
               >
                 {activeBranch.name}
               </span>
-              <span className="text-xs text-[#c4b5a8] hidden lg:inline truncate">• {activeBranch.location}</span>
             </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {/* Owner Staff Roles Button & Role Perspective Tester VS Staff Locked Badge */}
-            {currentRole === 'owner' ? (
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShowTeamModal(true)}
-                  className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-[#7b3f22] to-[#df9c20] text-[#18110c] font-black text-[11px] rounded-lg shadow-sm hover:brightness-110 cursor-pointer transition-all border border-amber-400/40"
-                  title="Assign Administrator, Sales, and Delivery roles to studio staff"
-                >
-                  <span>👑</span>
-                  <span>Team Staff Roles</span>
-                </button>
-
-                {/* Perspective Testing switcher for Owner */}
-                <div className="hidden sm:flex items-center gap-0.5 bg-black/50 border border-white/10 rounded-lg p-0.5 shadow-inner">
-                  {(['owner', 'admin', 'sales', 'delivery'] as const).map(r => {
-                    const isCurrent = currentRole === r;
-                    const roleLabels: Record<string, string> = {
-                      owner: '👑 Owner',
-                      admin: '🛡️ Admin',
-                      sales: '💼 Sales',
-                      delivery: '🚚 Delivery'
-                    };
-                    return (
-                      <button
-                        key={r}
-                        type="button"
-                        onClick={() => {
-                          switchRole(r);
-                          showToast(`Testing perspective: ${roleLabels[r]}`);
-                        }}
-                        className={`px-2 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                          isCurrent
-                            ? 'text-white shadow-xs font-black'
-                            : 'text-neutral-400 hover:text-white hover:bg-white/5'
-                        }`}
-                        style={isCurrent ? { backgroundColor: activeBranch.theme.primaryColor } : {}}
-                        title={`Test role perspective as ${roleLabels[r]}`}
-                      >
-                        {roleLabels[r]}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              /* Non-owner staff locked role badge */
-              <div className="flex items-center gap-1.5 bg-black/60 border border-amber-600/40 px-2.5 py-1 rounded-lg text-[11px] shadow-inner">
-                <span className="text-amber-400">🔒</span>
-                <span className="font-bold text-stone-200">
-                  {currentRole === 'admin'
-                    ? '🛡️ Administrator'
-                    : currentRole === 'sales'
-                    ? '💼 Sales Person'
-                    : '🚚 Delivery Person'}
-                </span>
-                <span className="text-[9.5px] text-[#a89588] font-mono hidden md:inline">• Locked by Owner</span>
-              </div>
-            )}
-
-            {/* Quick multi-device join code pill in top bar */}
-            {company?.inviteCode && (
+            {user ? (
               <button
                 type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(company.inviteCode);
-                  showToast(`Copied Team Join Code: ${company.inviteCode}`);
+                onClick={async () => {
+                  try {
+                    await signOut();
+                    showToast('Signed out successfully.');
+                  } catch (err) {
+                    console.error(err);
+                  }
                 }}
-                className="hidden lg:inline-flex items-center gap-1.5 bg-black/50 border px-2.5 py-1 rounded-md text-[11px] font-mono cursor-pointer transition-colors"
-                style={{
-                  borderColor: `${activeBranch.theme.accentColor}50`,
-                  color: activeBranch.theme.accentColor
-                }}
-                title="Click to copy team join code for other devices"
+                className="px-3.5 py-1.5 bg-red-950/70 hover:bg-red-900 border border-red-500/40 text-red-100 hover:text-white rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                title="Sign out of ARTÈ LUME"
+              >
+                <span>🚪</span>
+                <span>Sign Out</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowAccountModal(true)}
+                className="px-3.5 py-1.5 bg-[#df9c20] hover:bg-[#efa624] text-[#18110c] rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
               >
                 <span>🔑</span>
-                <span className="font-bold tracking-wider">{company.inviteCode}</span>
-                <span className="text-[10px] text-stone-400 font-sans hidden md:inline">(Copy)</span>
+                <span>Sign In</span>
               </button>
             )}
-
-            {/* Interactive User Guide (How to Use App) */}
-            <button
-              type="button"
-              onClick={() => setShowUsageGuideModal(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-amber-300 bg-black/40 hover:bg-black/60 border border-amber-500/40 transition-colors cursor-pointer shadow-xs"
-              title="How to Use ARTÈ LUME — Interactive 5-Step Guide"
-            >
-              <span>📖</span>
-              <span className="hidden sm:inline">How to Use App</span>
-              <span className="sm:hidden">Guide</span>
-            </button>
-
-            {/* Mobile / Tablet Store Listing Trigger */}
-            <button
-              type="button"
-              onClick={() => setShowStoreInstallModal(true)}
-              className="flex sm:hidden items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-bold text-stone-200 bg-black/40 hover:bg-black/60 border border-white/10 transition-colors cursor-pointer"
-              title="Official Mobile & PC Application"
-            >
-              <span>📲</span>
-              <span>App</span>
-            </button>
-
-            {/* User Account / Profile Button that opens StudioAccountModal */}
-            <button
-              onClick={() => setShowAccountModal(true)}
-              className="text-xs bg-white/10 hover:bg-white/20 text-[#ede5dc] px-2.5 py-1.5 rounded font-semibold cursor-pointer flex items-center gap-2 border border-white/15 transition-colors"
-              title="Studio Account, Devices &amp; Sign Out"
-            >
-              <div className="w-4 h-4 rounded-full bg-[#df9c20] text-[#110905] flex items-center justify-center font-bold text-[9px]">
-                {(userProfile?.displayName || user?.displayName || user?.email || 'A').slice(0, 1).toUpperCase()}
-              </div>
-              <span className="hidden sm:inline font-mono text-[11px] truncate max-w-[120px]">
-                {user?.email?.split('@')[0]}
-              </span>
-              <span className="text-[10px] text-[#df9c20]">⚙</span>
-            </button>
-
-
           </div>
         </div>
 
@@ -6264,7 +6154,7 @@ function StudioQuotationApp() {
           {/* ===================== LOGISTICS DELIVERY CHALLANS VIEW ===================== */}
           {activeView === 'delivery-challans' && (
             <DeliveryChallanView
-              challans={deliveryChallans}
+              challans={displayedDeliveryChallans}
               savedQuotes={savedQuotes}
               branch={activeBranch}
               currentRole={currentRole}
@@ -7080,17 +6970,9 @@ function StudioQuotationApp() {
               <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200 pb-3">
                   <div>
-                    <h3 className="font-bold text-sm text-neutral-900">Branch Profiles &amp; Logos</h3>
-                    <p className="text-xs text-neutral-500">Configure separate branding, logos, 121 architectural color plates, and bank details per branch</p>
+                    <h3 className="font-bold text-sm text-neutral-900">Studio Profiles &amp; Branding</h3>
+                    <p className="text-xs text-neutral-500">Configured for Artè Lume Studio (Hyderabad) and Vizag Studio (Siripuram)</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={addNewBranch}
-                    className="px-3.5 py-1.5 bg-[#df9c20] hover:brightness-105 text-[#170e08] font-bold text-xs rounded-lg cursor-pointer transition-all shadow-sm flex items-center gap-1.5 self-start sm:self-auto shrink-0"
-                  >
-                    <span>+</span>
-                    <span>Add New Studio Branch</span>
-                  </button>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3.5 pt-1">
@@ -10030,14 +9912,14 @@ function StudioQuotationApp() {
                     />
                   </div>
                   <div>
-                    <label className="font-bold text-neutral-700 block mb-1">Quotation Number Prefix</label>
+                    <label className="font-bold text-neutral-700 block mb-1">Quotation &amp; Challan Number Prefix</label>
                     <input
                       type="text"
                       value={branchEditForm.quotePrefix}
                       onChange={e => setBranchEditForm({ ...branchEditForm, quotePrefix: e.target.value.toUpperCase() })}
                       className="w-full border border-neutral-300 p-2 rounded-lg font-mono font-bold"
-                      placeholder="e.g. LC"
-                      maxLength={5}
+                      placeholder="e.g. AL-HYD, AL-VZG, AL"
+                      maxLength={12}
                     />
                   </div>
                   <div>

@@ -45,6 +45,7 @@ export interface CompanyMember {
   pin?: string;                // 4-digit numeric PIN for quick staff sign-in
   assignedBranchId?: string;   // 'artelume' (Branch 1 - Hyd) or 'artelume-vizag' (Branch 2 - Vizag)
   assignedBranchName?: string; // Human readable branch label
+  inviteCode?: string;         // Unique dedicated invite code for the staff member (e.g. HYD-SALES-8492)
   status: 'active' | 'invited' | 'disabled';
   joinedAt?: string;
   assignedBy?: string;
@@ -95,6 +96,7 @@ export interface DeliveryChallan {
   notes?: string;
   branchId?: string;
   createdAt: string;
+  createdBy?: string;
   // Automated Dedicated Person Allocation from Quote
   allocatedPerson?: string;
   allocatedPersonRole?: string;
@@ -143,6 +145,7 @@ export interface QuotationDocument {
   dedicatedPersonEmail?: string;
   notes?: string;
   createdAt?: string;
+  createdBy?: string;
 }
 
 export interface BranchProfile {
@@ -223,4 +226,15 @@ export interface CashEntry {
   name: string;
   amt: number;
   date: string;
+}
+
+export interface StudioNotification {
+  id: string;
+  type: 'quotation' | 'challan' | 'payment';
+  actorName: string;
+  actorRole?: string;
+  title: string;
+  description: string;
+  timestamp: string;
+  branchId?: string;
 }
