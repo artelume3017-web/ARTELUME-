@@ -14,7 +14,8 @@ import {
   DeliveryChallanItem,
   QuotationPaymentRecord,
   AppRole,
-  CompanyMember
+  CompanyMember,
+  StudioNotification
 } from './types';
 import { CURATED_FIXTURES } from './data/fixtures';
 import { exportQuotationToExcel } from './utils/excelExport';
@@ -59,10 +60,14 @@ import { ClientShareModal } from './components/ClientShareModal';
 import { WhatsAppShareModal } from './components/WhatsAppShareModal';
 import { ClientQuotationView } from './components/ClientQuotationView';
 import { QuotationGalleryView } from './components/QuotationGalleryView';
+import { SideStockCatalogDrawer } from './components/SideStockCatalogDrawer';
+import { PdfCatalogImportModal } from './components/PdfCatalogImportModal';
 import { PdfPreviewModal } from './components/PdfPreviewModal';
 import { PaymentRecordModal } from './components/PaymentRecordModal';
 import { DeliveryChallanModal } from './components/DeliveryChallanModal';
 import { DeliveryChallanView } from './components/DeliveryChallanView';
+import { MaterialMatrixModal } from './components/MaterialMatrixModal';
+import { DeliveryPodCollectionModal } from './components/DeliveryPodCollectionModal';
 import { TeamManagementModal } from './components/TeamManagementModal';
 import { NotifyClientModal } from './components/NotifyClientModal';
 import { PWAInstallButton } from './components/PWAInstallButton';
@@ -226,10 +231,59 @@ function StudioQuotationApp() {
 
   // Safe navigation that switches view and automatically dismisses the mobile drawer
   const navigateView = (view: typeof activeView) => {
+    if (currentRole === 'delivery' && view === 'quote-builder') {
+      showToast('🔒 Delivery personnel have access to Delivery Challans & Logistics.');
+      setActiveView('delivery-challans');
+      return;
+    }
     setActiveView(view);
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
       setSidebarOpen(false);
     }
+  };
+
+  // Studio Activity Notifications (Offline persisted in localStorage)
+  const [studioNotifications, setStudioNotifications] = useState<StudioNotification[]>(() => {
+    try {
+      const saved = localStorage.getItem('artelume_studio_notifications');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  });
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+
+  const recordStudioNotification = (
+    type: 'quotation' | 'challan' | 'payment',
+    title: string,
+    description: string
+  ) => {
+    const actorName =
+      localStorage.getItem('artelume_staff_name') ||
+      userProfile?.displayName ||
+      user?.displayName ||
+      user?.email?.split('@')[0] ||
+      (currentRole === 'owner' ? 'Studio Director' : 'Staff Member');
+
+    const newNotif: StudioNotification = {
+      id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      type,
+      actorName,
+      actorRole: currentRole,
+      title,
+      description,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      branchId: activeBranchId
+    };
+
+    setStudioNotifications(prev => {
+      const next = [newNotif, ...prev.slice(0, 49)];
+      try {
+        localStorage.setItem('artelume_studio_notifications', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+
+    showToast(`🔔 ${actorName}: ${title}`);
   };
 
   // Active Quotation State
@@ -252,13 +306,13 @@ function StudioQuotationApp() {
     return 18;
   });
 
-  // Column Visibility Toggles - Default Product Code, List Price & Disc %, Bank Details enabled
+  // Column Visibility Toggles - Default Product Code, List Price & Disc %, Bank Details & Lighting Specs enabled
   const [showCode, setShowCode] = useState(true);
-  const [showBeam, setShowBeam] = useState(false);     // Beam Angle
-  const [showCRI, setShowCRI] = useState(false);       // CRI
-  const [showIP, setShowIP] = useState(false);         // IP Rating
-  const [showFinish, setShowFinish] = useState(false); // Body Finish
-  const [showReflector, setShowReflector] = useState(false); // Reflector Finish
+  const [showBeam, setShowBeam] = useState(true);     // Beam Angle
+  const [showCRI, setShowCRI] = useState(true);       // CRI
+  const [showIP, setShowIP] = useState(true);         // IP Rating
+  const [showFinish, setShowFinish] = useState(true); // Body Finish
+  const [showReflector, setShowReflector] = useState(true); // Reflector Finish
   const [showDiscount, setShowDiscount] = useState(true);
   const [showBank, setShowBank] = useState(true);
   const [bankInfo, setBankInfo] = useState(() => DEFAULT_BRANCHES[0].bankDetails);
@@ -337,7 +391,21 @@ function StudioQuotationApp() {
   const [showClientShareModal, setShowClientShareModal] = useState(false);
   const [showWhatsAppShareModal, setShowWhatsAppShareModal] = useState(false);
   const [showPdfPreviewModal, setShowPdfPreviewModal] = useState(false);
+  const [showPdfCatalogModal, setShowPdfCatalogModal] = useState(false);
   const [quoteBuilderMode, setQuoteBuilderMode] = useState<'table' | 'gallery'>('table');
+  const [matrixModalQuote, setMatrixModalQuote] = useState<QuotationDocument | null>(null);
+  const [podModalTarget, setPodModalTarget] = useState<{ challan: DeliveryChallan; quote?: QuotationDocument } | null>(null);
+  const [activeQuoteMenu, setActiveQuoteMenu] = useState<string | null>(null);
+
+  // Close quotation card menu when clicking anywhere outside
+  useEffect(() => {
+    if (!activeQuoteMenu) return;
+    const handleOutsideClick = () => setActiveQuoteMenu(null);
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, [activeQuoteMenu]);
+  const [isSideCatalogOpen, setIsSideCatalogOpen] = useState(false);
+  const [activeCatalogRowIndex, setActiveCatalogRowIndex] = useState(0);
   const [showUsageGuideModal, setShowUsageGuideModal] = useState(false);
   const [showStoreInstallModal, setShowStoreInstallModal] = useState(false);
   const [showWelcomePromptModal, setShowWelcomePromptModal] = useState<boolean>(() => {
@@ -1298,7 +1366,54 @@ function StudioQuotationApp() {
     setItems(updated);
   };
 
+  const handlePopulateRowFromStock = (rowIndex: number, product: LightingProduct) => {
+    setItems(prevItems => {
+      const updated = [...prevItems];
+      if (!updated[rowIndex]) {
+        updated[rowIndex] = {
+          id: `item-${Date.now()}`,
+          sku: '',
+          name: '',
+          category: 'Downlights',
+          watt: '',
+          cct: '3000K',
+          beam: '24°',
+          cri: 'CRI 90+',
+          ip: 'IP20',
+          finish: 'Matte White',
+          reflector: 'Specular',
+          qty: 1,
+          listPrice: 0,
+          discount: 0,
+          price: 0,
+          img: ''
+        };
+      }
+      const target = { ...updated[rowIndex] };
+      target.sku = product.sku || target.sku;
+      target.name = product.name || target.name;
+      target.category = product.category || target.category;
+      if (product.watt) target.watt = product.watt;
+      if (product.cct) target.cct = product.cct;
+      if (product.beam) target.beam = product.beam;
+      if (product.cri) target.cri = product.cri;
+      if (product.ip) target.ip = product.ip;
+      if (product.finish) target.finish = product.finish;
+      if (product.reflector) target.reflector = product.reflector;
+      if (product.img) target.img = product.img;
+      const unitPrice = Number(product.price) || 0;
+      target.listPrice = unitPrice;
+      target.discount = 0;
+      target.price = unitPrice;
+      updated[rowIndex] = target;
+      return updated;
+    });
+    showToast(`✓ Row #${rowIndex + 1} populated with ${product.sku} (${formatInr(product.price)})`);
+  };
+
   const addBlankRow = () => {
+    const newIdx = items.length;
+    setActiveCatalogRowIndex(newIdx);
     setItems([
       ...items,
       {
@@ -2709,6 +2824,51 @@ function StudioQuotationApp() {
     showToast(`Product "${newEntry.sku}" saved!`);
   };
 
+  const handleImportFromPdfToCatalog = (newProducts: LightingProduct[]) => {
+    if (!newProducts || newProducts.length === 0) return;
+    const merged = [...products];
+
+    newProducts.forEach(np => {
+      const idx = merged.findIndex(p => (p.sku || '').toLowerCase().trim() === (np.sku || '').toLowerCase().trim());
+      if (idx >= 0) {
+        merged[idx] = { ...merged[idx], ...np };
+      } else {
+        merged.push(np);
+      }
+
+      if (company?.id) {
+        saveCloudProduct(company.id, np).catch(err => {
+          console.warn('Cloud save imported product error:', err);
+        });
+      }
+    });
+
+    setProducts(merged);
+    try {
+      localStorage.setItem('artelume_products', JSON.stringify(merged));
+    } catch (e) {
+      console.warn('LocalStorage save failed:', e);
+    }
+    showToast(`✓ Added ${newProducts.length} luminaires from PDF to Catalog!`);
+  };
+
+  const handleImportFromPdfToQuote = (newProducts: LightingProduct[]) => {
+    if (!newProducts || newProducts.length === 0) return;
+    const newItems: QuotationItem[] = newProducts.map(p => ({
+      ...p,
+      qty: 1,
+      listPrice: p.price,
+      discount: 0,
+      price: p.price,
+    }));
+
+    setItems(prev => {
+      const cleaned = prev.filter(it => it.sku || it.name || (it.price && it.price > 0));
+      return [...cleaned, ...newItems];
+    });
+    showToast(`✓ Populated ${newItems.length} luminaires from PDF into quotation!`);
+  };
+
   const deleteProduct = (id: string) => {
     const p = products.find(prod => prod.id === id);
     setDeleteConfirmTarget({ type: 'product', id, name: p ? p.sku : 'Product' });
@@ -3027,6 +3187,12 @@ function StudioQuotationApp() {
       }
       return updated;
     });
+
+    recordStudioNotification(
+      'payment',
+      `Payment ${formatInr(payment.amount)} Recorded (${payment.paymentMode})`,
+      `Receipt #${payment.receiptNumber} for Quote #${targetQuote.quoteNum || targetQuote.name}`
+    );
   };
 
   const handleDeletePayment = (quoteNumOrKey: string, paymentId: string) => {
@@ -3459,6 +3625,12 @@ function StudioQuotationApp() {
       saveCloudDeliveryChallan(company.id, challan).catch(console.warn);
     }
 
+    recordStudioNotification(
+      'challan',
+      `Delivery Challan #${challan.challanNum} Issued`,
+      `Goods dispatched to ${challan.client || 'client'} • Status: ${challan.status}`
+    );
+
     showToast(`🚚 Delivery Challan #${challan.challanNum} saved for ${challan.client || 'client'}${paymentToRecord ? ` & payment receipt ${paymentToRecord.receiptNumber} (${formatInr(paymentToRecord.amount)}) credited to Bank!` : '!'}`);
   };
 
@@ -3639,6 +3811,90 @@ function StudioQuotationApp() {
     showToast(`🚚 Delivery Challan & Quotation status updated to "${status}"!`);
   };
 
+  const handleConfirmPodPayment = (
+    challanId: string,
+    signatureDataUrl: string,
+    receiverName: string,
+    receiverPhone: string,
+    amount: number,
+    mode: 'Cash' | 'UPI' | 'Bank Transfer' | 'Cheque',
+    notes?: string
+  ) => {
+    setDeliveryChallans(prev => {
+      const updated = prev.map(dc => {
+        if (dc.id === challanId) {
+          return {
+            ...dc,
+            status: 'Delivered' as const,
+            recipientName: receiverName,
+            contactPhone: receiverPhone || dc.contactPhone,
+            paymentCollected: (Number(dc.paymentCollected) || 0) + amount,
+            notes: notes ? `${dc.notes ? dc.notes + ' • ' : ''}${notes}` : dc.notes
+          };
+        }
+        return dc;
+      });
+      try {
+        localStorage.setItem('artelume_delivery_challans', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    if (amount > 0 && podModalTarget?.quote) {
+      const q = podModalTarget.quote;
+      const cleanChallanNum = podModalTarget.challan.challanNum.replace(/^DC-?/i, '');
+      const paymentModeVal: 'UPI' | 'NEFT / RTGS' | 'Cash' | 'Cheque' = mode === 'Bank Transfer' ? 'NEFT / RTGS' : mode;
+
+      const paymentRecord: QuotationPaymentRecord = {
+        id: `pay-pod-${Date.now()}`,
+        amount,
+        date: new Date().toISOString().split('T')[0],
+        type: 'On-Delivery Payment',
+        paymentMode: paymentModeVal,
+        referenceNo: `RCP-POD-${cleanChallanNum}`,
+        collectedByRole: currentRole,
+        collectedByName: userProfile?.displayName || user?.displayName || 'Delivery Team',
+        verifiedByAdmin: false,
+        receiptNumber: `RCP-POD-${cleanChallanNum}`,
+        notes: `On-site POD payment collected by driver/dispatch team from ${receiverName}`
+      };
+
+      setSavedQuotes(prev => {
+        const next = { ...prev };
+        const quoteKey = (Object.keys(next).find(k => next[k].quoteNum === q.quoteNum || k === q.name) || q.name || '') as string;
+        if (quoteKey && next[quoteKey]) {
+          const currentPayments = next[quoteKey].payments || [];
+          next[quoteKey] = {
+            ...next[quoteKey],
+            status: 'Delivered',
+            payments: [...currentPayments, paymentRecord]
+          };
+          try {
+            localStorage.setItem('artelume_quotes', JSON.stringify(next));
+          } catch (e) {}
+        }
+        return next;
+      });
+
+      const tx: BankTransaction = {
+        id: `tx-pod-${Date.now()}`,
+        date: new Date().toISOString().split('T')[0],
+        type: 'credit',
+        amount,
+        description: `Site POD Payment — ${q.client || 'Client'} (Challan #${podModalTarget.challan.challanNum})`,
+        category: 'Client Payment',
+        mode: paymentModeVal,
+        referenceNo: `RCP-POD-${cleanChallanNum}`,
+        receiptNumber: `RCP-POD-${cleanChallanNum}`,
+        quoteNum: q.quoteNum,
+        client: q.client
+      };
+      setBankTransactions(prev => [tx, ...prev]);
+    }
+
+    showToast(`✓ POD signed by ${receiverName} & ${formatInr(amount)} recorded!`);
+  };
+
   const handleOpenCreateChallan = (fromQuote?: QuotationDocument) => {
     setChallanSourceQuote(fromQuote || currentQuoteDoc);
     setEditingChallan(null);
@@ -3776,13 +4032,13 @@ function StudioQuotationApp() {
             <span>{activeBranch.location}</span>
           </div>
 
-          {/* Branch Control: Owner can toggle between Branch 1 & Branch 2, Staff is locked */}
+          {/* Studio Control: Owner can toggle between Hyderabad & Vizag, Staff is locked */}
           {currentRole === 'owner' ? (
             branches.length > 1 && (
               <div className="mt-3 bg-black/50 border border-white/10 rounded-lg p-1 flex items-center gap-1">
                 {branches.map(b => {
                   const isSelected = b.id === activeBranchId;
-                  const label = b.id === 'artelume' ? '🏛️ Branch 1: Hyd' : '🌊 Branch 2: Vizag';
+                  const label = b.id === 'artelume' ? '🏛️ Artè Lume (Hyd)' : '🌊 Vizag Studio';
                   return (
                     <button
                       key={b.id}
@@ -3807,27 +4063,29 @@ function StudioQuotationApp() {
                 <span>Assigned:</span>
               </span>
               <span className="font-bold text-[11px] text-white">
-                {activeBranchId === 'artelume-vizag' ? '🌊 Branch 2: Vizag' : '🏛️ Branch 1: Hyderabad'}
+                {activeBranchId === 'artelume-vizag' ? '🌊 Vizag Studio (Siripuram)' : '🏛️ Artè Lume (Hyderabad)'}
               </span>
             </div>
           )}
         </div>
 
-        {/* Primary Action Button */}
-        <div className="px-4 py-2">
-          <button
-            onClick={startNewQuote}
-            className="w-full flex items-center justify-center gap-2 text-white py-2.5 px-4 rounded-lg font-semibold text-sm hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer shadow-lg"
-            style={{
-              background: `linear-gradient(135deg, ${activeBranch.theme.primaryColor}, ${activeBranch.theme.accentColor})`,
-              boxShadow: `0 8px 18px ${activeBranch.theme.primaryColor}55`,
-              color: getContrastTextColor(activeBranch.theme.primaryColor) === '#ffffff' ? '#ffffff' : '#111215'
-            }}
-          >
-            <span className="text-lg leading-none">+</span>
-            <span>New Quotation</span>
-          </button>
-        </div>
+        {/* Primary Action Button - Hidden for Delivery Person */}
+        {currentRole !== 'delivery' && (
+          <div className="px-4 py-2">
+            <button
+              onClick={startNewQuote}
+              className="w-full flex items-center justify-center gap-2 text-white py-2.5 px-4 rounded-lg font-semibold text-sm hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer shadow-lg"
+              style={{
+                background: `linear-gradient(135deg, ${activeBranch.theme.primaryColor}, ${activeBranch.theme.accentColor})`,
+                boxShadow: `0 8px 18px ${activeBranch.theme.primaryColor}55`,
+                color: getContrastTextColor(activeBranch.theme.primaryColor) === '#ffffff' ? '#ffffff' : '#111215'
+              }}
+            >
+              <span className="text-lg leading-none">+</span>
+              <span>New Quotation</span>
+            </button>
+          </div>
+        )}
 
         {/* Navigation Items */}
         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 text-sm font-medium">
@@ -3876,24 +4134,27 @@ function StudioQuotationApp() {
             </span>
           </button>
 
-          <button
-            onClick={() => navigateView('quote-builder')}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all cursor-pointer text-left ${
-              activeView === 'quote-builder' ? 'font-bold text-white' : 'text-[#baaaa0] hover:bg-white/5'
-            }`}
-            style={
-              activeView === 'quote-builder'
-                ? {
-                    backgroundColor: `${activeBranch.theme.primaryColor}38`,
-                    borderLeft: `3px solid ${activeBranch.theme.accentColor}`,
-                    color: '#ffffff'
-                  }
-                : {}
-            }
-          >
-            <span className="text-base">✏️</span>
-            <span>Quotation Builder</span>
-          </button>
+          {/* Quotation Builder - Hidden for Delivery Person */}
+          {currentRole !== 'delivery' && (
+            <button
+              onClick={() => navigateView('quote-builder')}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all cursor-pointer text-left ${
+                activeView === 'quote-builder' ? 'font-bold text-white' : 'text-[#baaaa0] hover:bg-white/5'
+              }`}
+              style={
+                activeView === 'quote-builder'
+                  ? {
+                      backgroundColor: `${activeBranch.theme.primaryColor}38`,
+                      borderLeft: `3px solid ${activeBranch.theme.accentColor}`,
+                      color: '#ffffff'
+                    }
+                  : {}
+              }
+            >
+              <span className="text-base">✏️</span>
+              <span>Quotation Builder</span>
+            </button>
+          )}
 
           {/* Dedicated Logistics Delivery Challan Section */}
           <button
@@ -4206,6 +4467,21 @@ function StudioQuotationApp() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {/* Activity Notifications Bell */}
+            <button
+              type="button"
+              onClick={() => setShowNotificationsModal(true)}
+              className="p-1.5 hover:bg-white/10 rounded-lg text-white text-base transition-colors cursor-pointer relative"
+              title="Studio Activity Notifications (Quotations, Challans, Payments)"
+            >
+              <span>🔔</span>
+              {studioNotifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-[#df9c20] text-[#140c08] text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
+                  {Math.min(studioNotifications.length, 99)}
+                </span>
+              )}
+            </button>
+
             {user ? (
               <button
                 type="button"
@@ -4388,71 +4664,97 @@ function StudioQuotationApp() {
                     {/* 'Pending & Overdue' Action Center Panel */}
                     <div id="pending-overdue-panel" className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden scroll-mt-6">
                       {/* Panel Header */}
-                      <div className="p-4 sm:p-5 bg-gradient-to-r from-neutral-900 via-[#221710] to-neutral-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-xl shrink-0">
-                            ⏰
+                      <div className="px-5 py-4 sm:px-6 sm:py-5 bg-[#1a1614] border-b border-stone-800 text-stone-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#df9c20]/25 to-amber-950/40 border border-[#df9c20]/40 flex items-center justify-center text-amber-400 shrink-0 shadow-xs">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
                           </div>
                           <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-bold text-base text-neutral-100">
-                                Pending &amp; Overdue Quotations Center
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                              <h3 className="font-bold text-base text-stone-100 tracking-tight">
+                                Quotation Follow-ups &amp; Action Center
                               </h3>
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-neutral-950">
-                                {reminderItems.length} FLAGGED
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#df9c20]/15 text-[#f0ba54] border border-[#df9c20]/30 tracking-wide">
+                                {reminderItems.length} ACTIVE
                               </span>
                             </div>
-                            <p className="text-xs text-neutral-400 mt-0.5">
-                              Automatic tracking for quotations requiring follow-ups, pending material delivery, or balance collection
+                            <p className="text-xs text-stone-400 mt-0.5">
+                              Proposals awaiting client confirmation, partial material dispatch, or balance collection
                             </p>
                           </div>
                         </div>
 
-                        {/* Filter Tabs */}
-                        <div className="flex items-center gap-1.5 flex-wrap bg-neutral-800/80 p-1 rounded-xl border border-neutral-700 self-start sm:self-auto text-xs">
+                        {/* Filter Tabs - Clean Segmented Control */}
+                        <div className="flex items-center gap-1 bg-stone-900/90 p-1 rounded-xl border border-stone-800 self-stretch sm:self-start lg:self-auto overflow-x-auto no-scrollbar text-xs">
                           <button
                             type="button"
                             onClick={() => setReminderFilterTab('all')}
-                            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-lg font-semibold text-xs whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                               reminderFilterTab === 'all'
-                                ? 'bg-[#df9c20] text-[#170e08] shadow-xs'
-                                : 'text-neutral-300 hover:text-white hover:bg-white/5'
+                                ? 'bg-stone-800 text-white shadow-xs border border-stone-700/80 font-bold'
+                                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/50'
                             }`}
                           >
-                            All ({reminderItems.length})
+                            <span>All</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${reminderFilterTab === 'all' ? 'bg-[#df9c20] text-stone-950' : 'bg-stone-800 text-stone-400'}`}>
+                              {reminderItems.length}
+                            </span>
                           </button>
+
                           <button
                             type="button"
                             onClick={() => setReminderFilterTab('overdue')}
-                            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-lg font-semibold text-xs whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                               reminderFilterTab === 'overdue'
-                                ? 'bg-red-600 text-white shadow-xs'
-                                : 'text-neutral-300 hover:text-white hover:bg-white/5'
+                                ? 'bg-red-950/80 text-red-200 border border-red-700/60 shadow-xs font-bold'
+                                : 'text-stone-400 hover:text-red-300 hover:bg-stone-800/50'
                             }`}
                           >
-                            🚨 Overdue &gt;30d ({overdueItems.length})
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block"></span>
+                            <span>Overdue &gt;30d</span>
+                            {overdueItems.length > 0 && (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-red-500/30 text-red-300">
+                                {overdueItems.length}
+                              </span>
+                            )}
                           </button>
+
                           <button
                             type="button"
                             onClick={() => setReminderFilterTab('delivery')}
-                            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-lg font-semibold text-xs whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                               reminderFilterTab === 'delivery'
-                                ? 'bg-indigo-600 text-white shadow-xs'
-                                : 'text-neutral-300 hover:text-white hover:bg-white/5'
+                                ? 'bg-indigo-950/80 text-indigo-200 border border-indigo-700/60 shadow-xs font-bold'
+                                : 'text-stone-400 hover:text-indigo-300 hover:bg-stone-800/50'
                             }`}
                           >
-                            📦 Pending Material ({pendingDeliveryItems.length})
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 inline-block"></span>
+                            <span>Pending Dispatch</span>
+                            {pendingDeliveryItems.length > 0 && (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-indigo-500/30 text-indigo-300">
+                                {pendingDeliveryItems.length}
+                              </span>
+                            )}
                           </button>
+
                           <button
                             type="button"
                             onClick={() => setReminderFilterTab('balance')}
-                            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-lg font-semibold text-xs whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                               reminderFilterTab === 'balance'
-                                ? 'bg-amber-600 text-white shadow-xs'
-                                : 'text-neutral-300 hover:text-white hover:bg-white/5'
+                                ? 'bg-amber-950/80 text-amber-200 border border-amber-700/60 shadow-xs font-bold'
+                                : 'text-stone-400 hover:text-amber-300 hover:bg-stone-800/50'
                             }`}
                           >
-                            💳 Balance Due ({balanceDueItems.length})
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"></span>
+                            <span>Balance Due</span>
+                            {balanceDueItems.length > 0 && (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-amber-500/30 text-amber-300">
+                                {balanceDueItems.length}
+                              </span>
+                            )}
                           </button>
                         </div>
                       </div>
@@ -4724,16 +5026,18 @@ function StudioQuotationApp() {
                     <span>🚚</span>
                     <span>View All Delivery Challans ({deliveryChallans.length}) ›</span>
                   </button>
-                  <button
-                    onClick={startNewQuote}
-                    className="px-4 py-2 text-xs font-bold rounded-lg shadow hover:brightness-105 cursor-pointer transition-all"
-                    style={{
-                      backgroundColor: activeBranch.theme.accentColor,
-                      color: getContrastTextColor(activeBranch.theme.accentColor)
-                    }}
-                  >
-                    + New Quotation
-                  </button>
+                  {currentRole !== 'delivery' && (
+                    <button
+                      onClick={startNewQuote}
+                      className="px-4 py-2 text-xs font-bold rounded-lg shadow hover:brightness-105 cursor-pointer transition-all"
+                      style={{
+                        backgroundColor: activeBranch.theme.accentColor,
+                        color: getContrastTextColor(activeBranch.theme.accentColor)
+                      }}
+                    >
+                      + New Quotation
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -4821,21 +5125,38 @@ function StudioQuotationApp() {
                           ? 'Dispatched'
                           : q.status || 'Draft';
 
+                        const qTotalOrdered = (q.items || []).reduce((s, it) => s + (Number(it.qty) || 0), 0);
+                        const qTotalDispatched = linkedChallans.reduce((sum, ch) => {
+                          return sum + (ch.items || []).reduce((s, it) => s + (Number(it.qtyDispatched) || 0), 0);
+                        }, 0);
+                        const qDispatchPct = qTotalOrdered > 0 ? Math.min(100, Math.round((qTotalDispatched / qTotalOrdered) * 100)) : (linkedChallans.length > 0 ? 100 : 0);
+                        const rawLead = q.dedicatedPerson || 'Vikram Sharma';
+                        const cleanLead = rawLead.replace(/\s*\([^)]*\)\s*/g, ' ').trim() || rawLead;
+
                         return (
                           <div
                             key={name}
-                            className="bg-white border border-[#e4e5e7] hover:border-neutral-400 rounded-xl p-4 shadow-sm transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer"
-                            onClick={() => openSavedQuote(name)}
+                            className="bg-white border border-stone-200 hover:border-stone-400 rounded-xl p-4 sm:p-5 shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer"
+                            onClick={() => {
+                              if (currentRole === 'delivery') {
+                                navigateView('delivery-challans');
+                                showToast(`Viewing delivery challans for ${q.client || name}`);
+                              } else {
+                                openSavedQuote(name);
+                              }
+                            }}
                           >
-                            <div className="space-y-1.5 flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
+                            {/* Left Information Strip */}
+                            <div className="space-y-2 flex-1 min-w-0">
+                              {/* 1. Header: Quote Code, Name/Client, Status, Branch */}
+                              <div className="flex items-center gap-2.5 flex-wrap">
                                 <span
-                                  className="font-mono text-xs font-bold"
+                                  className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-stone-100 border border-stone-200"
                                   style={{ color: qBranch.theme.primaryColor }}
                                 >
                                   {q.quoteNum || 'QT'}
                                 </span>
-                                <span className="font-bold text-base text-[#17191c]">{name}</span>
+                                <span className="font-bold text-base text-stone-900 tracking-tight">{name}</span>
                                 <select
                                   value={q.status || 'Draft'}
                                   onClick={e => e.stopPropagation()}
@@ -4843,7 +5164,7 @@ function StudioQuotationApp() {
                                     e.stopPropagation();
                                     handleUpdateSavedQuoteStatus(name, e.target.value as any);
                                   }}
-                                  className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border cursor-pointer outline-none shadow-2xs transition-colors ${
+                                  className={`text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full border cursor-pointer outline-none shadow-2xs transition-colors ${
                                     effectiveStatus === 'Delivered'
                                       ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                                       : effectiveStatus === 'Dispatched'
@@ -4858,7 +5179,7 @@ function StudioQuotationApp() {
                                       ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                                       : effectiveStatus === 'Rejected'
                                       ? 'bg-red-50 text-red-800 border-red-300'
-                                      : 'bg-gray-100 text-gray-700 border-gray-300'
+                                      : 'bg-stone-100 text-stone-700 border-stone-300'
                                   }`}
                                   title="Click to change quotation status"
                                 >
@@ -4871,197 +5192,408 @@ function StudioQuotationApp() {
                                   <option value="Delivered">Delivered 📦</option>
                                   <option value="Rejected">Rejected ❌</option>
                                 </select>
-                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 border border-neutral-200">
+                                <span className="text-[11px] font-medium text-stone-500 bg-stone-50 px-2 py-0.5 rounded-md border border-stone-200/80">
                                   🏛️ {qBranch.name || 'Artè Lume'}
                                 </span>
                               </div>
 
-                              {/* Dedicated Person & Project In-Charge Chip */}
-                              <div className="flex items-center gap-2 text-xs flex-wrap">
-                                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-emerald-50 text-emerald-950 px-2.5 py-0.5 rounded-full border border-emerald-300 shadow-2xs">
-                                  <span>🎯 Dedicated Person:</span>
-                                  <strong className="text-emerald-900">{q.dedicatedPerson || 'Vikram Sharma (Sales Lead)'}</strong>
-                                  {q.dedicatedPersonRole && (
-                                    <span className="text-[10px] text-emerald-800 font-normal">({q.dedicatedPersonRole})</span>
-                                  )}
-                                </span>
-                                <span className="text-gray-300">•</span>
-                                <span className="text-gray-600">Client: <strong className="font-semibold text-gray-800">{q.client || 'Untitled'}</strong></span>
-                                <span className="text-gray-300">•</span>
-                                <span className="text-gray-600">Date: <strong className="font-semibold text-gray-800">{q.date || 'Today'}</strong></span>
-                                <span className="text-gray-300">•</span>
-                                <span className="text-gray-600">{q.items.length} line items</span>
-                              </div>
-
-                              {/* Linked Delivery Challans Badge Strip & Multiple Shipments */}
-                              <div className="flex items-center gap-1.5 flex-wrap pt-0.5" onClick={e => e.stopPropagation()}>
-                                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider flex items-center gap-1">
-                                  <span>🚚</span>
-                                  <span>Challans ({linkedChallans.length}):</span>
-                                </span>
-                                {linkedChallans.length > 0 ? (
+                              {/* 2. Metadata: Date, Items Count, Clean Sales Lead (No redundant client repetition) */}
+                              <div className="flex items-center gap-2 text-xs text-stone-500 flex-wrap">
+                                <span>{q.date || 'Today'}</span>
+                                <span className="text-stone-300">•</span>
+                                <span className="text-stone-700 font-medium">{q.items.length} line items</span>
+                                <span className="text-stone-300">•</span>
+                                <span>Lead: <strong className="font-semibold text-stone-800">{cleanLead}</strong></span>
+                                {q.client && q.client.toLowerCase() !== name.toLowerCase() && (
                                   <>
-                                    {linkedChallans.map((dc) => (
-                                      <div
-                                        key={dc.id}
-                                        className="inline-flex items-center rounded text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 shadow-2xs overflow-hidden"
-                                      >
-                                        <button
-                                          type="button"
-                                          onClick={() => handleOpenEditChallan(dc)}
-                                          className="px-2 py-0.5 hover:bg-indigo-100 flex items-center gap-1 cursor-pointer transition-colors"
-                                          title={`View Delivery Challan #${dc.challanNum} (Allocated: ${dc.allocatedPerson || 'In-Charge'})`}
-                                        >
-                                          <span>#{dc.challanNum}</span>
-                                          <span className="text-[9px] opacity-80 font-normal">({dc.status})</span>
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={e => {
-                                            e.stopPropagation();
-                                            handleUnlinkChallanFromQuote(name, dc.challanNum);
-                                          }}
-                                          className="px-1.5 py-0.5 text-indigo-400 hover:text-red-700 hover:bg-red-50 border-l border-indigo-200 transition-colors cursor-pointer"
-                                          title={`Unlink Challan #${dc.challanNum} from this quotation`}
-                                        >
-                                          ✕
-                                        </button>
-                                      </div>
-                                    ))}
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenCreateChallan(q)}
-                                      className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-600 text-white hover:bg-indigo-700 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                                      title="Create another delivery challan / shipment batch for this quotation"
-                                    >
-                                      <span>+ Add Next Challan</span>
-                                    </button>
+                                    <span className="text-stone-300">•</span>
+                                    <span>Client: <strong className="font-semibold text-stone-800">{q.client}</strong></span>
                                   </>
-                                ) : (
-                                  <span className="text-[11px] text-gray-400 italic">
-                                    No shipments created yet. Click Challan to auto-allocate.
-                                  </span>
                                 )}
                               </div>
 
-                              {/* Payment Progress Bar & Multi-Payment Installments Link */}
-                              <div
-                                className="flex items-center gap-2 pt-0.5 cursor-pointer group"
-                                onClick={e => {
-                                  e.stopPropagation();
-                                  handleOpenRecordPayment(q, 'history');
-                                }}
-                                title="Click to view all multiple payment receipts and installments history"
-                              >
-                                <div className="w-28 bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                                  <div
-                                    className={`h-full ${qPaidTotal >= totalVal && totalVal > 0 ? 'bg-emerald-500' : 'bg-amber-500'}`}
-                                    style={{ width: `${paidPct}%` }}
-                                  />
-                                </div>
-                                <span className="text-[10px] text-gray-600 font-semibold group-hover:text-gray-900 transition-colors">
-                                  {qPaidTotal >= totalVal && totalVal > 0 ? (
-                                    <span className="text-emerald-700 font-bold">✓ Paid in Full ({formatInr(qPaidTotal)})</span>
-                                  ) : (
-                                    <span>
-                                      Paid: <strong className="text-emerald-700 font-bold">{formatInr(qPaidTotal)}</strong> • Due:{' '}
-                                      <strong className="text-[#7b3f22] font-bold">{formatInr(qBalanceDue)}</strong>
+                              {/* 3. Live Financial & Dispatch Indicators (Clean & Compact) */}
+                              <div className="flex items-center gap-3 text-xs flex-wrap pt-0.5" onClick={e => e.stopPropagation()}>
+                                {/* Payment progress bar */}
+                                <div
+                                  className="flex items-center gap-2 cursor-pointer group"
+                                  onClick={() => handleOpenRecordPayment(q, 'history')}
+                                  title="View payments & installments history"
+                                >
+                                  <div className="w-24 bg-stone-200 rounded-full h-1.5 overflow-hidden">
+                                    <div
+                                      className={`h-full ${qPaidTotal >= totalVal && totalVal > 0 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                                      style={{ width: `${paidPct}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-[11px] text-stone-600 font-medium group-hover:text-stone-900 transition-colors">
+                                    {qPaidTotal >= totalVal && totalVal > 0 ? (
+                                      <span className="text-emerald-700 font-semibold">✓ Paid in Full ({formatInr(qPaidTotal)})</span>
+                                    ) : (
+                                      <span>
+                                        Paid: <strong className="text-emerald-700 font-semibold">{formatInr(qPaidTotal)}</strong> • Due:{' '}
+                                        <strong className="text-stone-900 font-semibold">{formatInr(qBalanceDue)}</strong>
+                                      </span>
+                                    )}
+                                  </span>
+                                  {qPayments.length > 0 && (
+                                    <span className="text-[10px] text-stone-400">
+                                      ({qPayments.length} inst.)
                                     </span>
                                   )}
-                                </span>
-                                {qPayments.length > 0 && (
-                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 font-bold border border-amber-300 shadow-2xs group-hover:bg-amber-200">
-                                    📜 {qPayments.length} installment{qPayments.length === 1 ? '' : 's'}
-                                  </span>
+                                </div>
+
+                                {/* Dispatch indicator */}
+                                {linkedChallans.length > 0 ? (
+                                  <div
+                                    className="flex items-center gap-1.5 border-l border-stone-200 pl-3 cursor-pointer group"
+                                    onClick={() => setActiveQuoteMenu(prev => (prev === `dispatch-${name}` ? null : `dispatch-${name}`))}
+                                    title="Click to view delivery challans and material matrix"
+                                  >
+                                    <span className="text-[11px] text-stone-400">Dispatch:</span>
+                                    <span className={`text-[11px] font-semibold flex items-center gap-1 ${
+                                      qDispatchPct >= 100 ? 'text-emerald-700' : 'text-indigo-700'
+                                    }`}>
+                                      <span>🚚 {linkedChallans.length} {linkedChallans.length === 1 ? 'Challan' : 'Challans'}</span>
+                                      <span className="font-mono text-[10px] font-bold">({qDispatchPct}%)</span>
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="border-l border-stone-200 pl-3 text-[11px] text-stone-400">
+                                    No shipments yet
+                                  </div>
                                 )}
                               </div>
                             </div>
 
-                            <div className="flex flex-col gap-3 shrink-0 md:min-w-[420px]">
-                              <div className="text-right">
-                                <div className="text-[10px] text-gray-400 uppercase font-bold">Total (incl. GST)</div>
+                            {/* Right Action & Price Column */}
+                            <div className="flex flex-col sm:items-end gap-2.5 shrink-0">
+                              {/* Price */}
+                              <div className="sm:text-right">
+                                <div className="text-[10px] text-stone-400 uppercase font-bold tracking-wider">Total (incl. GST)</div>
                                 <div
-                                  className="text-lg font-extrabold"
+                                  className="text-lg font-black"
                                   style={{ color: qBranch.theme.primaryColor }}
                                 >
                                   {formatInr(totalVal)}
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 flex-wrap justify-end" onClick={e => e.stopPropagation()}>
-                                {/* 1. Edit */}
-                                <button
-                                  type="button"
-                                  onClick={() => openSavedQuote(name)}
-                                  className="px-3 py-1.5 bg-[#7b3f22] hover:bg-[#5f3019] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs"
-                                  title="Open in Builder to edit items, prices, and specifications"
-                                >
-                                  <span>✏️</span>
-                                  <span>Edit</span>
-                                </button>
 
-                                {/* 2. Payment */}
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenRecordPayment(q, 'add')}
-                                  className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs"
-                                  title="Record booking advance or milestone payment"
-                                >
-                                  <span>💳</span>
-                                  <span>Payment</span>
-                                </button>
-                                {qPayments.length > 0 && (
+                              {/* Unified Toolbar (Edit + Delivery & Matrix dropdown + Payments dropdown + More dropdown) */}
+                              <div className="flex items-center gap-2 flex-wrap sm:justify-end relative" onClick={e => e.stopPropagation()}>
+                                {/* 1. Edit Button */}
+                                {currentRole !== 'delivery' && (
                                   <button
                                     type="button"
-                                    onClick={() => handleOpenRecordPayment(q, 'history')}
-                                    className="px-2 py-1.5 border border-amber-300 bg-amber-50 hover:bg-amber-100 rounded-lg text-xs font-bold text-amber-900 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                                    title="View payment receipts history"
+                                    onClick={() => openSavedQuote(name)}
+                                    className="px-3 py-1.5 bg-[#7b3f22] hover:bg-[#5f3019] text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-all shadow-2xs"
+                                    title="Open quote builder"
                                   >
-                                    <span>📜</span>
-                                    <span>Receipts ({qPayments.length})</span>
+                                    <span>✏️</span>
+                                    <span>Edit</span>
                                   </button>
                                 )}
 
-                                {/* 3. Delivery Challan */}
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenCreateChallan(q)}
-                                  className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs hover:scale-[1.02]"
-                                  title="Create delivery challan for this quotation"
-                                >
-                                  <span>🚚</span>
-                                  <span>
-                                    {linkedChallans.length > 0
-                                      ? `Challan #${linkedChallans.length + 1}`
-                                      : 'Challan'}
-                                  </span>
-                                </button>
+                                {/* 2. Unified Delivery & Matrix Dropdown (Exact match for user prompt) */}
+                                <div className="relative">
+                                  <button
+                                    type="button"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      setActiveQuoteMenu(prev => (prev === `dispatch-${name}` ? null : `dispatch-${name}`));
+                                    }}
+                                    className="px-3 py-1.5 bg-[#0f2744] hover:bg-[#0284c7] text-[#bae6fd] hover:text-white border border-[#0284c7]/40 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs"
+                                    title="View Material Matrix & Manage Delivery Challans"
+                                  >
+                                    <span>🚚</span>
+                                    <span>Challan &amp; Matrix</span>
+                                    {linkedChallans.length > 0 && (
+                                      <span className="text-[10px] font-mono px-1.5 py-0.2 bg-black/40 rounded text-sky-200">
+                                        {linkedChallans.length}
+                                      </span>
+                                    )}
+                                    <span className="text-[9px] opacity-75">▼</span>
+                                  </button>
 
-                                {/* 4. More Options (Exports, Full A4 PDF Preview, Excel, WhatsApp, Client Link, Delete) */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    openSavedQuote(name);
-                                    setShowExportModal(true);
-                                  }}
-                                  className="px-3 py-1.5 bg-white hover:bg-neutral-100 text-neutral-800 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all border border-neutral-300 shadow-2xs"
-                                  title="More Options (Full Page A4 PDF, Excel .xlsx, WhatsApp, Client View Link, Delete)"
-                                >
-                                  <span>📂</span>
-                                  <span>More Options</span>
-                                </button>
+                                  {activeQuoteMenu === `dispatch-${name}` && (
+                                    <div
+                                      className="absolute right-0 bottom-full mb-1.5 bg-[#182232] text-white border border-slate-700 rounded-xl shadow-2xl p-1.5 z-50 min-w-[260px] flex flex-col gap-1 text-xs animate-in fade-in duration-100"
+                                      onClick={e => e.stopPropagation()}
+                                    >
+                                      <div className="text-[10px] uppercase font-bold text-slate-400 px-2.5 py-1 border-b border-slate-800 flex justify-between items-center">
+                                        <span>Dispatch &amp; Matrix Hub</span>
+                                        <span className="text-sky-400 font-mono text-[9px]">{qTotalDispatched}/{qTotalOrdered} units</span>
+                                      </div>
 
-                                {/* Quick Delete */}
-                                <button
-                                  type="button"
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    deleteSavedQuote(name);
-                                  }}
-                                  className="p-1.5 border border-gray-200 hover:bg-red-50 text-red-600 rounded-lg text-xs cursor-pointer transition-colors"
-                                  title="Delete Quotation"
-                                >
-                                  🗑️
-                                </button>
+                                      {/* Action A: Material Matrix Modal */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setMatrixModalQuote(q);
+                                          setActiveQuoteMenu(null);
+                                        }}
+                                        className="flex items-center gap-2.5 p-2 hover:bg-slate-800 rounded-lg text-left cursor-pointer transition-colors"
+                                      >
+                                        <span className="text-base">📊</span>
+                                        <div className="flex-1">
+                                          <div className="font-bold text-white text-xs flex items-center justify-between">
+                                            <span>Material Dispatch Matrix</span>
+                                            <span className="text-[10px] text-sky-400 font-mono font-bold">{qDispatchPct}%</span>
+                                          </div>
+                                          <div className="text-[10px] text-slate-400">Ordered vs dispatched cumulative balance</div>
+                                        </div>
+                                      </button>
+
+                                      {/* Action B: Create Next Challan */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleOpenCreateChallan(q);
+                                          setActiveQuoteMenu(null);
+                                        }}
+                                        className="flex items-center gap-2.5 p-2 hover:bg-slate-800 rounded-lg text-left cursor-pointer transition-colors"
+                                      >
+                                        <span className="text-base">🚚</span>
+                                        <div>
+                                          <div className="font-bold text-white text-xs">
+                                            + Issue New Challan {linkedChallans.length > 0 ? `(#${linkedChallans.length + 1})` : ''}
+                                          </div>
+                                          <div className="text-[10px] text-slate-400">Auto-allocate fixtures to site shipment</div>
+                                        </div>
+                                      </button>
+
+                                      {/* Action C: On-Site POD Simulator */}
+                                      {linkedChallans.length > 0 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setPodModalTarget({ challan: linkedChallans[0], quote: q });
+                                            setActiveQuoteMenu(null);
+                                          }}
+                                          className="flex items-center gap-2.5 p-2 hover:bg-slate-800 rounded-lg text-left cursor-pointer transition-colors"
+                                        >
+                                          <span className="text-base">✍️</span>
+                                          <div>
+                                            <div className="font-bold text-white text-xs">On-Site POD &amp; UPI Collection</div>
+                                            <div className="text-[10px] text-slate-400">Digital signature &amp; instant delivery receipt</div>
+                                          </div>
+                                        </button>
+                                      )}
+
+                                      {/* Subsection: Active Linked Challans List */}
+                                      {linkedChallans.length > 0 && (
+                                        <div className="mt-1 pt-1 border-t border-slate-800/80">
+                                          <div className="text-[9px] uppercase font-bold text-slate-400 px-2 py-0.5">
+                                            Active Challans ({linkedChallans.length})
+                                          </div>
+                                          <div className="max-h-36 overflow-y-auto space-y-0.5">
+                                            {linkedChallans.map(dc => (
+                                              <div
+                                                key={dc.id}
+                                                className="flex items-center justify-between p-1.5 hover:bg-slate-800/70 rounded-lg text-xs"
+                                              >
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    handleOpenEditChallan(dc);
+                                                    setActiveQuoteMenu(null);
+                                                  }}
+                                                  className="flex items-center gap-1.5 text-left text-sky-300 hover:text-white font-mono font-bold cursor-pointer"
+                                                >
+                                                  <span>#{dc.challanNum}</span>
+                                                  <span className="text-[9px] font-sans font-normal text-slate-400">({dc.status})</span>
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={e => {
+                                                    e.stopPropagation();
+                                                    handleUnlinkChallanFromQuote(name, dc.challanNum);
+                                                  }}
+                                                  className="text-[10px] text-slate-500 hover:text-red-400 px-1.5 py-0.5 rounded cursor-pointer"
+                                                  title={`Unlink #${dc.challanNum}`}
+                                                >
+                                                  ✕
+                                                </button>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* 3. Combined Payments Hub */}
+                                <div className="relative">
+                                  <button
+                                    type="button"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      setActiveQuoteMenu(prev => (prev === `pay-${name}` ? null : `pay-${name}`));
+                                    }}
+                                    className="px-3 py-1.5 bg-[#2a1f10] hover:bg-[#d97706] text-[#fde68a] hover:text-black border border-[#d97706]/60 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-all shadow-2xs"
+                                    title="Manage booking advance, installment payments, and view receipts"
+                                  >
+                                    <span>💳</span>
+                                    <span>Payments ({qPayments.length})</span>
+                                    <span className="text-[9px] opacity-75">▼</span>
+                                  </button>
+
+                                  {activeQuoteMenu === `pay-${name}` && (
+                                    <div
+                                      className="absolute right-0 bottom-full mb-1.5 bg-[#182232] text-white border border-slate-700 rounded-xl shadow-2xl p-1.5 z-50 min-w-[210px] flex flex-col gap-1 text-xs animate-in fade-in duration-100"
+                                      onClick={e => e.stopPropagation()}
+                                    >
+                                      <div className="text-[10px] uppercase font-bold text-slate-400 px-2.5 py-1 border-b border-slate-800">
+                                        Payments &amp; Receipts
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleOpenRecordPayment(q, 'add');
+                                          setActiveQuoteMenu(null);
+                                        }}
+                                        className="flex items-center gap-2 p-2 hover:bg-slate-800 rounded-lg text-left cursor-pointer transition-colors"
+                                      >
+                                        <span className="text-base">💳</span>
+                                        <div>
+                                          <div className="font-bold text-white text-xs">Record Payment</div>
+                                          <div className="text-[10px] text-slate-400">Collect via UPI, Cash, Cheque</div>
+                                        </div>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleOpenRecordPayment(q, 'history');
+                                          setActiveQuoteMenu(null);
+                                        }}
+                                        className="flex items-center gap-2 p-2 hover:bg-slate-800 rounded-lg text-left cursor-pointer transition-colors"
+                                      >
+                                        <span className="text-base">🧾</span>
+                                        <div>
+                                          <div className="font-bold text-white text-xs">View Receipts ({qPayments.length})</div>
+                                          <div className="text-[10px] text-slate-400">Print or share official receipts</div>
+                                        </div>
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* 4. Combined Export & More Hub */}
+                                <div className="relative">
+                                  <button
+                                    type="button"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      setActiveQuoteMenu(prev => (prev === `export-${name}` ? null : `export-${name}`));
+                                    }}
+                                    className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border border-neutral-300 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-all shadow-2xs"
+                                    title="Export, Print PDF, Excel, WhatsApp, or Duplicate"
+                                  >
+                                    <span>📤</span>
+                                    <span>More</span>
+                                    <span className="text-[9px] opacity-75">▼</span>
+                                  </button>
+
+                                  {activeQuoteMenu === `export-${name}` && (
+                                    <div
+                                      className="absolute right-0 bottom-full mb-1.5 bg-[#182232] text-white border border-slate-700 rounded-xl shadow-2xl p-1.5 z-50 min-w-[220px] flex flex-col gap-1 text-xs animate-in fade-in duration-100"
+                                      onClick={e => e.stopPropagation()}
+                                    >
+                                      <div className="text-[10px] uppercase font-bold text-slate-400 px-2.5 py-1 border-b border-slate-800">
+                                        Export &amp; Options
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          openSavedQuote(name);
+                                          setShowPdfPreviewModal(true);
+                                          setActiveQuoteMenu(null);
+                                        }}
+                                        className="flex items-center gap-2 p-2 hover:bg-slate-800 rounded-lg text-left cursor-pointer transition-colors"
+                                      >
+                                        <span className="text-base">🖨️</span>
+                                        <div>
+                                          <div className="font-bold text-white text-xs">Print / Save PDF</div>
+                                          <div className="text-[10px] text-slate-400">Official client presentation proposal</div>
+                                        </div>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          openSavedQuote(name);
+                                          setShowSpreadsheetModal(true);
+                                          setActiveQuoteMenu(null);
+                                        }}
+                                        className="flex items-center gap-2 p-2 hover:bg-slate-800 rounded-lg text-left cursor-pointer transition-colors"
+                                      >
+                                        <span className="text-base">📗</span>
+                                        <div>
+                                          <div className="font-bold text-white text-xs">Excel Spreadsheet (.xlsx)</div>
+                                          <div className="text-[10px] text-slate-400">Download formatted workbook</div>
+                                        </div>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newName = `${q.name} (Copy)`;
+                                          const nextNum = `${activeBranch.id === 'lightcraft' ? 'LC' : 'AL'}-${String(Object.keys(savedQuotes).length + 1).padStart(3, '0')}`;
+                                          const duplicated: QuotationDocument = {
+                                            ...q,
+                                            id: `quote-${Date.now()}`,
+                                            name: newName,
+                                            quoteNum: nextNum,
+                                            date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                                            status: 'Draft',
+                                            payments: [],
+                                            deliveryChallans: []
+                                          };
+                                          setSavedQuotes(prev => ({ ...prev, [newName]: duplicated }));
+                                          showToast(`📋 Quotation duplicated as "${newName}" (#${nextNum})!`);
+                                          setActiveQuoteMenu(null);
+                                        }}
+                                        className="flex items-center gap-2 p-2 hover:bg-slate-800 rounded-lg text-left cursor-pointer transition-colors"
+                                      >
+                                        <span className="text-base">📋</span>
+                                        <div>
+                                          <div className="font-bold text-white text-xs">Duplicate Quote</div>
+                                          <div className="text-[10px] text-slate-400">Clone line items to new draft</div>
+                                        </div>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          openSavedQuote(name);
+                                          setShowWhatsAppShareModal(true);
+                                          setActiveQuoteMenu(null);
+                                        }}
+                                        className="flex items-center gap-2 p-2 hover:bg-slate-800 rounded-lg text-left cursor-pointer transition-colors"
+                                      >
+                                        <span className="text-base">📱</span>
+                                        <div>
+                                          <div className="font-bold text-white text-xs">Share on WhatsApp</div>
+                                          <div className="text-[10px] text-slate-400">Direct instant proposal message</div>
+                                        </div>
+                                      </button>
+                                      <div className="border-t border-slate-800 pt-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            deleteSavedQuote(name);
+                                            setActiveQuoteMenu(null);
+                                          }}
+                                          className="flex items-center gap-2 p-2 hover:bg-red-950/60 text-red-400 hover:text-red-300 rounded-lg text-left cursor-pointer transition-colors w-full"
+                                        >
+                                          <span className="text-base">🗑️</span>
+                                          <div>
+                                            <div className="font-bold text-xs">Delete Quotation</div>
+                                            <div className="text-[10px] text-red-500/80">Permanently remove proposal</div>
+                                          </div>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -5193,6 +5725,11 @@ function StudioQuotationApp() {
                           setShowCode(true);
                           setShowDiscount(true);
                           setShowBank(true);
+                          setShowBeam(true);
+                          setShowCRI(true);
+                          setShowIP(true);
+                          setShowFinish(true);
+                          setShowReflector(true);
                         }}
                         className="text-[11px] font-semibold hover:underline cursor-pointer transition-colors"
                         style={{ color: activeBranch.theme.primaryColor }}
@@ -5203,9 +5740,14 @@ function StudioQuotationApp() {
                       <button
                         type="button"
                         onClick={() => {
-                          setShowCode(false);
+                          setShowCode(true);
                           setShowDiscount(false);
-                          setShowBank(false);
+                          setShowBank(true);
+                          setShowBeam(false);
+                          setShowCRI(false);
+                          setShowIP(false);
+                          setShowFinish(false);
+                          setShowReflector(false);
                         }}
                         className="text-[11px] font-semibold text-gray-500 hover:text-gray-700 hover:underline cursor-pointer"
                       >
@@ -5213,7 +5755,8 @@ function StudioQuotationApp() {
                       </button>
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2.5 text-xs">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    {/* Columns & Section Toggles */}
                     <button
                       type="button"
                       onClick={() => setShowCode(!showCode)}
@@ -5259,8 +5802,92 @@ function StudioQuotationApp() {
                       <span>Bank Details</span>
                     </button>
 
-                    <div className="text-[11px] text-gray-500 italic ml-auto hidden sm:block">
-                      Technical specifications (Power, CCT, Beam, CRI, IP Rating, Body Finish &amp; Reflector) are placed line-by-line below product title.
+                    {/* Divider separating Layout toggles from Specs in Description */}
+                    <div className="h-5 w-[1px] bg-stone-300 hidden sm:block mx-1" />
+
+                    {/* Specs in Description Buttons */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span
+                        className="text-xs font-bold flex items-center gap-1 mr-1"
+                        style={{ color: activeBranch.theme.primaryColor }}
+                      >
+                        Specs in Description:
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowBeam(!showBeam)}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                          showBeam
+                            ? 'bg-[#7b3f22] text-white border-[#7b3f22] shadow-xs font-bold'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                        style={showBeam ? { backgroundColor: activeBranch.theme.primaryColor, borderColor: activeBranch.theme.primaryColor } : {}}
+                        title="Toggle Beam Angle specification in description"
+                      >
+                        <span className="font-bold text-xs">{showBeam ? '✓' : '+'}</span>
+                        <span>🎯 Beam</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowCRI(!showCRI)}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                          showCRI
+                            ? 'bg-[#7b3f22] text-white border-[#7b3f22] shadow-xs font-bold'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                        style={showCRI ? { backgroundColor: activeBranch.theme.primaryColor, borderColor: activeBranch.theme.primaryColor } : {}}
+                        title="Toggle Color Rendering Index (CRI) in description"
+                      >
+                        <span className="font-bold text-xs">{showCRI ? '✓' : '+'}</span>
+                        <span>🎨 CRI</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowIP(!showIP)}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                          showIP
+                            ? 'bg-[#7b3f22] text-white border-[#7b3f22] shadow-xs font-bold'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                        style={showIP ? { backgroundColor: activeBranch.theme.primaryColor, borderColor: activeBranch.theme.primaryColor } : {}}
+                        title="Toggle IP Rating (Ingress Protection) in description"
+                      >
+                        <span className="font-bold text-xs">{showIP ? '✓' : '+'}</span>
+                        <span>🛡️ IP</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowFinish(!showFinish)}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                          showFinish
+                            ? 'bg-[#7b3f22] text-white border-[#7b3f22] shadow-xs font-bold'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                        style={showFinish ? { backgroundColor: activeBranch.theme.primaryColor, borderColor: activeBranch.theme.primaryColor } : {}}
+                        title="Toggle Body Finish specification in description"
+                      >
+                        <span className="font-bold text-xs">{showFinish ? '✓' : '+'}</span>
+                        <span>✨ Finish</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowReflector(!showReflector)}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                          showReflector
+                            ? 'bg-[#7b3f22] text-white border-[#7b3f22] shadow-xs font-bold'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                        style={showReflector ? { backgroundColor: activeBranch.theme.primaryColor, borderColor: activeBranch.theme.primaryColor } : {}}
+                        title="Toggle Reflector specification in description"
+                      >
+                        <span className="font-bold text-xs">{showReflector ? '✓' : '+'}</span>
+                        <span>🔆 Reflector</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -5354,124 +5981,101 @@ function StudioQuotationApp() {
                   </div>
                 </div>
 
-                {/* View Switcher: Table Schedule vs Fixture Gallery */}
-                <div className="bg-[#f7f3ee] border-b border-[#d9cbb9] px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs no-print">
-                  <div className="flex items-center gap-1.5 bg-neutral-200/90 p-1 rounded-lg border border-neutral-300">
-                    <button
-                      type="button"
-                      onClick={() => setQuoteBuilderMode('table')}
-                      className={`px-3 py-1.5 rounded-md font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
-                        quoteBuilderMode === 'table'
-                          ? 'bg-white shadow-xs text-neutral-900 font-extrabold'
-                          : 'text-neutral-600 hover:text-neutral-900'
-                      }`}
-                    >
-                      <span>📋</span>
-                      <span>Schedule (Table)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setQuoteBuilderMode('gallery')}
-                      className={`px-3 py-1.5 rounded-md font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
-                        quoteBuilderMode === 'gallery'
-                          ? 'bg-white shadow-xs text-neutral-900 font-extrabold'
-                          : 'text-neutral-600 hover:text-neutral-900'
-                      }`}
-                    >
-                      <span>🖼️</span>
-                      <span>Project Gallery</span>
-                      <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.2 rounded-full border border-amber-300">
-                        {items.filter(it => it.img).length}/{items.length}
-                      </span>
-                    </button>
-                  </div>
-
-                  <div className="text-[11px] text-stone-500 hidden sm:block">
-                    {quoteBuilderMode === 'table'
-                      ? 'Detailed commercial schedule with optical specifications and line-by-line pricing'
-                      : 'Visual project moodboard scanning luminaire design aesthetics'}
-                  </div>
-                </div>
-
-                {/* 1. GALLERY VIEW MODE */}
-                {quoteBuilderMode === 'gallery' && (
-                  <QuotationGalleryView
-                    items={items}
-                    branch={activeBranch}
-                    quoteNum={quoteNum}
-                    onItemChange={handleItemChange}
-                    onRemoveItem={removeRow}
-                    onOpenSkuHistory={openSkuHistory}
-                    onOpenCatalog={() => setShowCatalogModal(true)}
-                    onSwitchToTable={() => setQuoteBuilderMode('table')}
-                    formatInr={formatInr}
-                    onShowToast={showToast}
-                  />
-                )}
-
-                {/* 2. TABLE SCHEDULE VIEW MODE */}
-                <div className={quoteBuilderMode === 'gallery' ? 'hidden print:block' : ''}>
+                {/* Quotation Table Schedule with Side-Docked Stock Drawer */}
+                <div className="flex flex-col lg:flex-row items-stretch border-t border-[#d9cbb9] relative">
                   {/* Interactive Table with Lighting Specifications */}
-                  <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-xs quote-table">
-                    <thead>
-                      <tr
-                        className="text-white text-center font-bold transition-colors"
-                        style={{ backgroundColor: activeBranch.theme.primaryColor }}
-                      >
-                        <th className="p-2 border border-[#d9cbb9] w-10">S.No.</th>
-                        {showCode && <th className="p-2 border border-[#d9cbb9] min-w-[120px] text-left">Product Code</th>}
-                        <th className="p-2 border border-[#d9cbb9] min-w-[280px] text-left">Product Description &amp; Specifications</th>
-                        <th className="p-2 border border-[#d9cbb9] w-24">Image</th>
-                        <th className="p-2 border border-[#d9cbb9] w-14">Qty</th>
-                        {showDiscount && (
-                          <>
-                            <th className="p-2 border border-[#d9cbb9] w-24 text-right">List Price (₹)</th>
-                            <th className="p-2 border border-[#d9cbb9] w-16">Disc %</th>
-                          </>
-                        )}
-                        <th className="p-2 border border-[#d9cbb9] w-24 text-right">Unit Price (₹)</th>
-                        <th className="p-2 border border-[#d9cbb9] w-28 text-right">Total (₹)</th>
-                        <th className="p-2 border border-[#d9cbb9] w-10 no-print">Act</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map((item, idx) => {
-                        const rowTotal = (Number(item.price) || 0) * (Number(item.qty) || 0);
-                        return (
-                          <tr
-                            key={item.id || idx}
-                            className={`border-b border-[#d9cbb9] text-center ${idx % 2 === 0 ? 'bg-white' : 'bg-[#fdfaf6]'}`}
-                          >
-                            {/* S.No */}
-                            <td className="p-2 border border-[#d9cbb9] font-semibold text-gray-500 align-top pt-3">{idx + 1}</td>
+                  <div className="flex-1 min-w-0 overflow-x-auto">
+                    <table className="w-full border-collapse text-xs quote-table">
+                      <thead>
+                        <tr
+                          className="text-white text-center font-bold transition-colors"
+                          style={{ backgroundColor: activeBranch.theme.primaryColor }}
+                        >
+                          <th className="p-2 border border-[#d9cbb9] w-10">S.No.</th>
+                          {showCode && <th className="p-2 border border-[#d9cbb9] min-w-[130px] text-left">Product Code</th>}
+                          <th className="p-2 border border-[#d9cbb9] min-w-[280px] text-left">Product Description &amp; Specifications</th>
+                          <th className="p-2 border border-[#d9cbb9] w-24">Image</th>
+                          <th className="p-2 border border-[#d9cbb9] w-14">Qty</th>
+                          {showDiscount && (
+                            <>
+                              <th className="p-2 border border-[#d9cbb9] w-24 text-right">List Price (₹)</th>
+                              <th className="p-2 border border-[#d9cbb9] w-16">Disc %</th>
+                            </>
+                          )}
+                          <th className="p-2 border border-[#d9cbb9] w-24 text-right">Unit Price (₹)</th>
+                          <th className="p-2 border border-[#d9cbb9] w-28 text-right">Total (₹)</th>
+                          <th className="p-2 border border-[#d9cbb9] w-10 no-print">Act</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((item, idx) => {
+                          const rowTotal = (Number(item.price) || 0) * (Number(item.qty) || 0);
+                          const isRowTargeted = isSideCatalogOpen && activeCatalogRowIndex === idx;
+                          return (
+                            <tr
+                              key={item.id || idx}
+                              onClick={() => {
+                                if (isSideCatalogOpen) {
+                                  setActiveCatalogRowIndex(idx);
+                                }
+                              }}
+                              className={`border-b border-[#d9cbb9] text-center transition-colors cursor-pointer ${
+                                isRowTargeted
+                                  ? 'bg-amber-50/70 ring-2 ring-amber-400 ring-inset font-semibold'
+                                  : idx % 2 === 0
+                                  ? 'bg-white'
+                                  : 'bg-[#fdfaf6]'
+                              }`}
+                            >
+                              {/* S.No */}
+                              <td className="p-2 border border-[#d9cbb9] font-semibold text-gray-500 align-top pt-3">{idx + 1}</td>
 
-                            {/* Product Code (with autocomplete suggestion) */}
-                            {showCode && (
-                              <td className="p-1.5 border border-[#d9cbb9] text-left relative align-top">
-                                <div className="flex items-center gap-1">
-                                  <input
-                                    type="text"
-                                    value={item.sku || ''}
-                                    onFocus={() => setActiveCodeDropdown(idx)}
-                                    onChange={e => {
-                                      handleItemChange(idx, 'sku', e.target.value);
-                                      setActiveCodeDropdown(idx);
-                                    }}
-                                    placeholder="SKU Code"
-                                    className="w-full bg-transparent px-1.5 py-1 outline-none font-mono font-bold text-[#17191c]"
-                                  />
-                                  {(item.sku || item.name) && (
+                              {/* Product Code (with autocomplete suggestion & ⚡ Stock Drawer opener) */}
+                              {showCode && (
+                                <td className="p-1.5 border border-[#d9cbb9] text-left relative align-top">
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="text"
+                                      value={item.sku || ''}
+                                      onFocus={() => {
+                                        setActiveCatalogRowIndex(idx);
+                                        setActiveCodeDropdown(idx);
+                                      }}
+                                      onChange={e => {
+                                        handleItemChange(idx, 'sku', e.target.value);
+                                        setActiveCodeDropdown(idx);
+                                      }}
+                                      placeholder="SKU Code"
+                                      className="w-full bg-transparent px-1.5 py-1 outline-none font-mono font-bold text-[#17191c]"
+                                    />
+                                    {/* ⚡ Stock Items Catalog Opener Button (matching user screenshot) */}
                                     <button
                                       type="button"
-                                      onClick={() => openSkuHistory(item.sku, item.name, idx)}
-                                      className="text-amber-800 hover:text-amber-950 hover:bg-amber-100/70 p-1 rounded text-xs transition-colors no-print shrink-0 cursor-pointer"
-                                      title="View SKU Pricing & Usage History across past quotations"
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        setActiveCatalogRowIndex(idx);
+                                        setIsSideCatalogOpen(true);
+                                      }}
+                                      className={`p-1 rounded text-xs font-bold transition-all no-print shrink-0 cursor-pointer ${
+                                        isRowTargeted
+                                          ? 'bg-amber-500 text-white shadow-xs'
+                                          : 'text-amber-700 hover:text-amber-900 hover:bg-amber-100'
+                                      }`}
+                                      title={`Open Stock Items Catalog Drawer for Row #${idx + 1}`}
                                     >
-                                      🕒
+                                      ⚡
                                     </button>
-                                  )}
-                                </div>
+                                    {(item.sku || item.name) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openSkuHistory(item.sku, item.name, idx)}
+                                        className="text-amber-800 hover:text-amber-950 hover:bg-amber-100/70 p-1 rounded text-xs transition-colors no-print shrink-0 cursor-pointer"
+                                        title="View SKU Pricing & Usage History across past quotations"
+                                      >
+                                        🕒
+                                      </button>
+                                    )}
+                                  </div>
                                 {activeCodeDropdown === idx && item.sku && (
                                   <div className="absolute left-0 top-full mt-1 w-64 bg-white border border-[#df9c20] rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto no-print">
                                     {products
@@ -5536,66 +6140,84 @@ function StudioQuotationApp() {
                               </div>
 
                               {/* Interactive Line-by-Line Technical Specifications */}
-                              <div className="mt-2 pt-2 border-t border-[#ebdcd0] space-y-1.5 no-print text-[11px]">
-                                {/* Line 3: Beam Angle SEPARATE LINE */}
-                                <div className="flex items-center gap-1.5 bg-stone-50/70 p-1 rounded border border-stone-200/60">
-                                  <span className="font-semibold text-gray-500">🎯 Beam Angle:</span>
-                                  <input
-                                    type="text"
-                                    value={item.beam || ''}
-                                    onChange={e => handleItemChange(idx, 'beam', e.target.value)}
-                                    placeholder="24°"
-                                    className="w-24 px-1.5 py-0.5 bg-white border border-stone-300 rounded font-semibold text-center text-[11px] outline-none focus:border-[#7b3f22]"
-                                  />
-                                </div>
+                              {(showBeam || showCRI || showIP || showFinish || showReflector) && (
+                                <div className="mt-2 pt-2 border-t border-[#ebdcd0] space-y-1.5 no-print text-[11px]">
+                                  {/* Line 3: Beam Angle SEPARATE LINE */}
+                                  {showBeam && (
+                                    <div className="flex items-center gap-1.5 bg-stone-50/70 p-1 rounded border border-stone-200/60">
+                                      <span className="font-semibold text-gray-500">🎯 Beam Angle:</span>
+                                      <input
+                                        type="text"
+                                        value={item.beam || ''}
+                                        onChange={e => handleItemChange(idx, 'beam', e.target.value)}
+                                        placeholder="24°"
+                                        className="w-24 px-1.5 py-0.5 bg-white border border-stone-300 rounded font-semibold text-center text-[11px] outline-none focus:border-[#7b3f22]"
+                                      />
+                                    </div>
+                                  )}
 
-                                {/* Line 4: CRI SEPARATE LINE */}
-                                <div className="flex items-center gap-1.5 bg-amber-50/40 p-1 rounded border border-amber-200/50">
-                                  <span className="font-bold text-amber-800">🎨 CRI:</span>
-                                  <input
-                                    type="text"
-                                    value={item.cri || ''}
-                                    onChange={e => handleItemChange(idx, 'cri', e.target.value)}
-                                    placeholder="CRI 95+"
-                                    className="w-28 px-1.5 py-0.5 bg-white border border-amber-300 rounded font-bold text-[11px] text-[#7b3f22] outline-none focus:border-[#7b3f22]"
-                                  />
-                                  <span className="text-[10px] text-amber-600 font-medium">(Color Rendering Index)</span>
-                                </div>
+                                  {/* Line 4: CRI SEPARATE LINE */}
+                                  {showCRI && (
+                                    <div className="flex items-center gap-1.5 bg-amber-50/40 p-1 rounded border border-amber-200/50">
+                                      <span className="font-bold text-amber-800">🎨 CRI:</span>
+                                      <input
+                                        type="text"
+                                        value={item.cri || ''}
+                                        onChange={e => handleItemChange(idx, 'cri', e.target.value)}
+                                        placeholder="CRI 95+"
+                                        className="w-28 px-1.5 py-0.5 bg-white border border-amber-300 rounded font-bold text-[11px] text-[#7b3f22] outline-none focus:border-[#7b3f22]"
+                                      />
+                                      <span className="text-[10px] text-amber-600 font-medium">(Color Rendering Index)</span>
+                                    </div>
+                                  )}
 
-                                {/* Line 5: IP Rating SEPARATE LINE */}
-                                <div className="flex items-center gap-1.5 bg-blue-50/40 p-1 rounded border border-blue-200/50">
-                                  <span className="font-bold text-blue-800">🛡️ IP Rating:</span>
-                                  <input
-                                    type="text"
-                                    value={item.ip || ''}
-                                    onChange={e => handleItemChange(idx, 'ip', e.target.value)}
-                                    placeholder="IP20"
-                                    className="w-24 px-1.5 py-0.5 bg-white border border-blue-300 rounded font-bold text-[11px] text-blue-900 outline-none focus:border-blue-700"
-                                  />
-                                  <span className="text-[10px] text-blue-600 font-medium">(Ingress Protection)</span>
-                                </div>
+                                  {/* Line 5: IP Rating SEPARATE LINE */}
+                                  {showIP && (
+                                    <div className="flex items-center gap-1.5 bg-blue-50/40 p-1 rounded border border-blue-200/50">
+                                      <span className="font-bold text-blue-800">🛡️ IP Rating:</span>
+                                      <input
+                                        type="text"
+                                        value={item.ip || ''}
+                                        onChange={e => handleItemChange(idx, 'ip', e.target.value)}
+                                        placeholder="IP20"
+                                        className="w-24 px-1.5 py-0.5 bg-white border border-blue-300 rounded font-bold text-[11px] text-blue-900 outline-none focus:border-blue-700"
+                                      />
+                                      <span className="text-[10px] text-blue-600 font-medium">(Ingress Protection)</span>
+                                    </div>
+                                  )}
 
-                                {/* Line 6: Body Finish & Reflector in SAME LINE */}
-                                <div className="flex flex-wrap items-center gap-1.5 text-gray-700 bg-stone-50/70 p-1 rounded border border-stone-200/60">
-                                  <span className="font-semibold text-gray-500">✨ Body Finish:</span>
-                                  <input
-                                    type="text"
-                                    value={item.finish || ''}
-                                    onChange={e => handleItemChange(idx, 'finish', e.target.value)}
-                                    placeholder="Matte White"
-                                    className="w-28 px-1.5 py-0.5 bg-white border border-stone-300 rounded font-semibold text-[11px] outline-none focus:border-[#7b3f22]"
-                                  />
-                                  <span className="text-gray-300">|</span>
-                                  <span className="font-semibold text-gray-500">🔆 Reflector:</span>
-                                  <input
-                                    type="text"
-                                    value={item.reflector || ''}
-                                    onChange={e => handleItemChange(idx, 'reflector', e.target.value)}
-                                    placeholder="Specular"
-                                    className="w-24 px-1.5 py-0.5 bg-white border border-stone-300 rounded font-semibold text-[11px] outline-none focus:border-[#7b3f22]"
-                                  />
+                                  {/* Line 6: Body Finish & Reflector in SAME LINE */}
+                                  {(showFinish || showReflector) && (
+                                    <div className="flex flex-wrap items-center gap-1.5 text-gray-700 bg-stone-50/70 p-1 rounded border border-stone-200/60">
+                                      {showFinish && (
+                                        <>
+                                          <span className="font-semibold text-gray-500">✨ Body Finish:</span>
+                                          <input
+                                            type="text"
+                                            value={item.finish || ''}
+                                            onChange={e => handleItemChange(idx, 'finish', e.target.value)}
+                                            placeholder="Matte White"
+                                            className="w-28 px-1.5 py-0.5 bg-white border border-stone-300 rounded font-semibold text-[11px] outline-none focus:border-[#7b3f22]"
+                                          />
+                                        </>
+                                      )}
+                                      {showFinish && showReflector && <span className="text-gray-300">|</span>}
+                                      {showReflector && (
+                                        <>
+                                          <span className="font-semibold text-gray-500">🔆 Reflector:</span>
+                                          <input
+                                            type="text"
+                                            value={item.reflector || ''}
+                                            onChange={e => handleItemChange(idx, 'reflector', e.target.value)}
+                                            placeholder="Specular"
+                                            className="w-24 px-1.5 py-0.5 bg-white border border-stone-300 rounded font-semibold text-[11px] outline-none focus:border-[#7b3f22]"
+                                          />
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
-                              </div>
+                              )}
 
                               {/* Print-Only Pristine Specification Stack (Shown when printed/saved as PDF) */}
                               <div className="hidden print:block mt-1.5 pt-1 border-t border-gray-200 space-y-0.5 text-[10px] text-gray-700 font-sans leading-tight">
@@ -5608,24 +6230,24 @@ function StudioQuotationApp() {
                                     </span>
                                   )}
                                 </div>
-                                {item.beam && (
+                                {showBeam && item.beam && (
                                   <div>
                                     🎯 Beam Angle: {item.beam}
                                   </div>
                                 )}
-                                {item.cri && (
+                                {showCRI && item.cri && (
                                   <div className="font-bold text-gray-800">
                                     🎨 CRI: {item.cri}
                                   </div>
                                 )}
-                                {item.ip && (
+                                {showIP && item.ip && (
                                   <div className="font-bold text-gray-800">
                                     🛡️ IP Rating: {item.ip}
                                   </div>
                                 )}
-                                {(item.finish || item.reflector) && (
+                                {((showFinish && item.finish) || (showReflector && item.reflector)) && (
                                   <div>
-                                    {[item.finish ? `✨ Body Finish: ${item.finish}` : '', item.reflector ? `🔆 Reflector: ${item.reflector}` : ''].filter(Boolean).join('  |  ')}
+                                    {[showFinish && item.finish ? `✨ Body Finish: ${item.finish}` : '', showReflector && item.reflector ? `🔆 Reflector: ${item.reflector}` : ''].filter(Boolean).join('  |  ')}
                                   </div>
                                 )}
                               </div>
@@ -5753,10 +6375,26 @@ function StudioQuotationApp() {
                   </table>
                 </div>
 
+                {/* Docked Side Stock Items Catalog Drawer */}
+                <SideStockCatalogDrawer
+                  isOpen={isSideCatalogOpen}
+                  onClose={() => setIsSideCatalogOpen(false)}
+                  activeRowIndex={activeCatalogRowIndex}
+                  activeRowSku={items[activeCatalogRowIndex]?.sku}
+                  activeRowName={items[activeCatalogRowIndex]?.name}
+                  products={products}
+                  branch={activeBranch}
+                  onSelectItem={handlePopulateRowFromStock}
+                  formatInr={formatInr}
+                  onOpenPdfImporter={() => setShowPdfCatalogModal(true)}
+                />
+              </div>
+
                 {/* Table Actions Toolbar (Hidden in Print) */}
                 <div className="p-3 bg-[#fbf8f5] border-t border-[#d9cbb9] flex flex-wrap items-center justify-between gap-3 no-print">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button
+                      type="button"
                       onClick={addBlankRow}
                       className="px-3.5 py-1.5 hover:brightness-105 text-white font-bold text-xs rounded-lg shadow-sm cursor-pointer transition-all"
                       style={{ backgroundColor: activeBranch.theme.accentColor }}
@@ -5764,31 +6402,58 @@ function StudioQuotationApp() {
                       + Add Blank Row
                     </button>
                     <button
-                      onClick={() => setShowCatalogModal(true)}
-                      className="px-3.5 py-1.5 hover:brightness-110 text-white font-semibold text-xs rounded-lg shadow-sm cursor-pointer flex items-center gap-1.5 transition-all"
+                      type="button"
+                      onClick={() => {
+                        const targetIdx = items.length > 0 ? (activeCatalogRowIndex < items.length ? activeCatalogRowIndex : items.length - 1) : 0;
+                        setActiveCatalogRowIndex(targetIdx);
+                        setIsSideCatalogOpen(!isSideCatalogOpen);
+                      }}
+                      className={`px-3.5 py-1.5 font-bold text-xs rounded-lg shadow-sm cursor-pointer flex items-center gap-1.5 transition-all text-white ${
+                        isSideCatalogOpen ? 'ring-2 ring-amber-400 font-extrabold shadow-md' : 'hover:brightness-110'
+                      }`}
                       style={{ backgroundColor: activeBranch.theme.primaryColor }}
+                      title="Toggle Side Stock Items Catalog Drawer"
                     >
-                      <span>❖</span>
-                      <span>Browse Catalog / Library</span>
+                      <span className="text-amber-300">⚡</span>
+                      <span>{isSideCatalogOpen ? 'Close Stock Drawer' : 'Stock Items (Side)'}</span>
                     </button>
                     <button
-                      onClick={() => openAddProductModal()}
+                      type="button"
+                      onClick={() => setShowPdfCatalogModal(true)}
+                      className="px-3.5 py-1.5 border border-amber-300 bg-amber-50 hover:bg-amber-100/80 font-bold text-xs rounded-lg cursor-pointer transition-all flex items-center gap-1.5 text-amber-950 shadow-2xs hover:scale-[1.02]"
+                      title="Upload product PDF catalog or price sheet to auto-extract luminaires without manual typing"
+                    >
+                      <span className="text-sm">⚡</span>
+                      <span>Auto-Import PDF Catalog</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowCatalogModal(true)}
                       className="px-3 py-1.5 border border-[#d9cbb9] bg-white hover:bg-gray-50 font-semibold text-xs rounded-lg cursor-pointer transition-all"
                       style={{ color: activeBranch.theme.primaryColor }}
+                      title="Browse Full Screen Catalog / Library Modal"
                     >
-                      + Custom Product Spec
+                      <span>❖</span>
+                      <span>Catalog Library Modal</span>
                     </button>
                     <button
-                      onClick={() => {
-                        setSpreadsheetError(null);
-                        setParsedSpreadsheetResult(null);
-                        setShowSpreadsheetModal(true);
-                      }}
-                      className="px-3.5 py-1.5 border border-dashed border-[#bfa58a] bg-amber-50/70 hover:bg-amber-100/60 font-semibold text-xs rounded-lg cursor-pointer transition-all flex items-center gap-1.5 text-amber-950 shadow-sm"
-                      title="Upload Excel spreadsheet to import products and specifications"
+                      type="button"
+                      onClick={() => openAddProductModal()}
+                      className="px-3 py-1.5 border border-[#d9cbb9] bg-white hover:bg-gray-50 font-semibold text-xs rounded-lg cursor-pointer transition-all flex items-center gap-1"
+                      style={{ color: activeBranch.theme.primaryColor }}
+                      title="Enter a new product from your price list with specs and image"
                     >
-                      <span>📥</span>
-                      <span>Upload Spreadsheet (.xlsx)</span>
+                      <span>+</span>
+                      <span>Add Product Spec</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowBulkImportModal(true)}
+                      className="px-3 py-1.5 border border-emerald-300 bg-emerald-50 hover:bg-emerald-100/70 font-semibold text-xs rounded-lg cursor-pointer transition-all flex items-center gap-1 text-emerald-900 shadow-2xs"
+                      title="Bulk enter multiple products from your price list and paste images"
+                    >
+                      <span>📋</span>
+                      <span>Bulk Price List Entry</span>
                     </button>
                   </div>
 
@@ -5803,7 +6468,6 @@ function StudioQuotationApp() {
                     <span className="text-xs font-bold text-gray-600">%</span>
                   </div>
                 </div>
-              </div>
 
                 {/* Totals Summary Card */}
                 <div className="flex justify-end p-4 bg-white">
@@ -6008,21 +6672,29 @@ function StudioQuotationApp() {
                     Manage architectural lighting fixtures, optical specs, wattages, and list pricing
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => openAddProductModal()}
-                    className="px-4 py-2 bg-[#df9c20] text-[#170e08] text-xs font-bold rounded-lg shadow cursor-pointer"
-                  >
-                    + Add Product Spec
-                  </button>
-                  <button
-                    onClick={() => setShowBulkImportModal(true)}
-                    className="px-4 py-2 bg-[#1a7a50] text-white text-xs font-bold rounded-lg shadow cursor-pointer flex items-center gap-1.5"
-                  >
-                    <span>📥</span>
-                    <span>Bulk Import Products</span>
-                  </button>
-                </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => setShowPdfCatalogModal(true)}
+                      className="px-4 py-2 bg-[#7b3f22] hover:bg-[#683318] text-white text-xs font-bold rounded-lg shadow cursor-pointer flex items-center gap-1.5 transition-all hover:scale-[1.02]"
+                      title="Upload product PDF catalog to auto-extract luminaires without manual typing"
+                    >
+                      <span className="text-sm">⚡</span>
+                      <span>Auto-Import from PDF</span>
+                    </button>
+                    <button
+                      onClick={() => openAddProductModal()}
+                      className="px-4 py-2 bg-[#df9c20] text-[#170e08] text-xs font-bold rounded-lg shadow cursor-pointer"
+                    >
+                      + Add Product Spec
+                    </button>
+                    <button
+                      onClick={() => setShowBulkImportModal(true)}
+                      className="px-4 py-2 bg-[#1a7a50] text-white text-xs font-bold rounded-lg shadow cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>📥</span>
+                      <span>Bulk Import Products</span>
+                    </button>
+                  </div>
               </div>
 
               {/* Product Cards Grid with Rich Specifications */}
@@ -6167,6 +6839,8 @@ function StudioQuotationApp() {
               onOpenPaymentModal={(quote, tab) => handleOpenRecordPayment(quote, tab || 'add')}
               onUpdateChallanStatus={handleUpdateChallanStatus}
               onDeleteChallan={handleDeleteChallan}
+              onOpenMaterialMatrix={q => setMatrixModalQuote(q)}
+              onOpenPodSimulator={(dc, q) => setPodModalTarget({ challan: dc, quote: q })}
               onShowToast={showToast}
             />
           )}
@@ -8005,6 +8679,18 @@ function StudioQuotationApp() {
         </div>
       )}
 
+      {/* 2B. SMART PDF & PRICE LIST CATALOG IMPORTER MODAL */}
+      {showPdfCatalogModal && (
+        <PdfCatalogImportModal
+          isOpen={showPdfCatalogModal}
+          onClose={() => setShowPdfCatalogModal(false)}
+          branch={activeBranch}
+          onImportToCatalog={handleImportFromPdfToCatalog}
+          onImportToQuote={handleImportFromPdfToQuote}
+          formatInr={formatInr}
+        />
+      )}
+
       {/* 3. ADD / EDIT PRODUCT MODAL (WITH FULL SPECS) */}
       {showProductModal && (
         <div
@@ -9589,29 +10275,6 @@ function StudioQuotationApp() {
                 </div>
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setShowExportModal(false);
-                  setSpreadsheetError(null);
-                  setParsedSpreadsheetResult(null);
-                  setShowSpreadsheetModal(true);
-                }}
-                className="w-full flex items-center gap-3.5 p-3.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all text-left cursor-pointer group"
-              >
-                <div className="w-10 h-10 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-lg shrink-0">
-                  📥
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-sm text-white group-hover:text-amber-400 transition-colors">
-                    Upload Spreadsheet (.xlsx, .xls)
-                  </div>
-                  <div className="text-[11px] text-[#baaaa0]">
-                    Import schedules, Excel sheets or vendor luminaire lists directly into quotation
-                  </div>
-                </div>
-              </button>
-
               <div className="pt-2 border-t border-white/10">
                 <button
                   type="button"
@@ -10441,6 +11104,95 @@ function StudioQuotationApp() {
         </div>
       )}
 
+      {/* 7B. STUDIO ACTIVITY & CREATOR NOTIFICATIONS MODAL */}
+      {showNotificationsModal && (
+        <div className="fixed inset-0 z-[9998] bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-150">
+          <div className="bg-[#18110c] text-white border border-[#3e271a] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden my-auto flex flex-col max-h-[85vh]">
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-[#2c170d] via-[#1f110a] to-[#18110c] border-b border-[#3e271a] flex items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <span className="text-xl">🔔</span>
+                <div>
+                  <h3 className="font-serif font-bold text-base text-[#f5eee6]">
+                    Studio Activity Notifications
+                  </h3>
+                  <p className="text-[11px] text-[#a89588]">
+                    Real-time audit log of quotes created, challans issued &amp; payments logged
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNotificationsModal(false)}
+                className="text-[#9a8576] hover:text-white p-1.5 rounded-lg hover:bg-white/5 cursor-pointer text-base"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 space-y-2.5">
+              {studioNotifications.length === 0 ? (
+                <div className="p-8 text-center bg-[#130b07] rounded-xl border border-[#3e271a]/60">
+                  <span className="text-3xl block mb-2">📭</span>
+                  <div className="font-bold text-sm text-neutral-300">No Notifications Yet</div>
+                  <p className="text-xs text-neutral-500 mt-1 max-w-xs mx-auto">
+                    When anyone creates a quotation, issues a delivery challan, or records a payment, their name and details will appear here.
+                  </p>
+                </div>
+              ) : (
+                studioNotifications.map(n => (
+                  <div
+                    key={n.id}
+                    className="p-3 bg-[#20130c] border border-[#3e271a] rounded-xl flex items-start gap-3 hover:border-[#df9c20]/50 transition-colors"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-[#331c10] border border-[#4a3022] flex items-center justify-center text-base shrink-0">
+                      {n.type === 'quotation' ? '📄' : n.type === 'challan' ? '🚚' : '💳'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-xs text-[#f5eee6] truncate">{n.title}</span>
+                        <span className="text-[10px] text-neutral-500 font-mono shrink-0">{n.timestamp}</span>
+                      </div>
+                      <p className="text-[11px] text-[#c4b5a8] mt-0.5">{n.description}</p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-500/30">
+                          👤 {n.actorName}
+                        </span>
+                        {n.actorRole && (
+                          <span className="text-[9.5px] text-[#df9c20] font-mono capitalize">
+                            ({n.actorRole})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {studioNotifications.length > 0 && (
+              <div className="p-3 bg-[#130b07] border-t border-[#3e271a] flex items-center justify-between">
+                <span className="text-xs text-neutral-400">
+                  Total: {studioNotifications.length} notification{studioNotifications.length === 1 ? '' : 's'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStudioNotifications([]);
+                    try {
+                      localStorage.removeItem('artelume_studio_notifications');
+                    } catch (e) {}
+                    showToast('Notifications cleared.');
+                  }}
+                  className="px-3 py-1 bg-red-950/50 hover:bg-red-900/60 border border-red-500/30 text-red-200 text-xs font-bold rounded-lg cursor-pointer transition-colors"
+                >
+                  Clear All
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 8. STUDIO ACCOUNT & SIGN OUT MODAL */}
       <StudioAccountModal
         isOpen={showAccountModal}
@@ -10542,6 +11294,47 @@ function StudioQuotationApp() {
         onOpenPaymentModal={quote => handleOpenRecordPayment(quote)}
         onShowToast={showToast}
       />
+
+      {/* 13B. CUMULATIVE MATERIAL MATRIX MODAL */}
+      {/* 13B. CUMULATIVE MATERIAL MATRIX MODAL (ALWAYS LIVE-SYNCED) */}
+      {matrixModalQuote && (() => {
+        const liveQuote = Object.values(savedQuotes).find(
+          q =>
+            (q.quoteNum && matrixModalQuote.quoteNum && q.quoteNum.toLowerCase() === matrixModalQuote.quoteNum.toLowerCase()) ||
+            (q.name && matrixModalQuote.name && q.name.toLowerCase() === matrixModalQuote.name.toLowerCase()) ||
+            (matrixModalQuote.id && q.id === matrixModalQuote.id)
+        ) || matrixModalQuote;
+
+        return (
+          <MaterialMatrixModal
+            isOpen={Boolean(matrixModalQuote)}
+            onClose={() => setMatrixModalQuote(null)}
+            quote={liveQuote}
+            challans={deliveryChallans}
+            branch={activeBranch}
+            onCreateNextChallan={(q, prefilledSku) => {
+              setMatrixModalQuote(null);
+              handleOpenCreateChallan(q);
+            }}
+            formatInr={formatInr}
+            onShowToast={showToast}
+          />
+        );
+      })()}
+
+      {/* 13C. DELIVERY POD & SITE PAYMENT COLLECTION SIMULATOR */}
+      {podModalTarget && (
+        <DeliveryPodCollectionModal
+          isOpen={Boolean(podModalTarget)}
+          onClose={() => setPodModalTarget(null)}
+          challan={podModalTarget.challan}
+          quote={podModalTarget.quote}
+          branch={activeBranch}
+          onConfirmPodPayment={handleConfirmPodPayment}
+          formatInr={formatInr}
+          onShowToast={showToast}
+        />
+      )}
 
       {/* 14. PENDING & OVERDUE NOTIFY CLIENT FOLLOW-UP MODAL */}
       {showNotifyClientModal && notifyClientTarget && (

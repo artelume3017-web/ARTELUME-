@@ -33,7 +33,8 @@ export async function exportQuotationToExcel(quote: QuotationDocument, branchPro
 
   const hasLogo = Boolean(branch?.logoUrl && branch.logoUrl.startsWith('data:image'));
 
-  // Build dynamic column definition based on user toggles
+  // Standardized 9-column structural grid for bulletproof Excel rendering
+  // Column A has fixed width 16 so Logo, CLIENT NAME:, and PROJECT / REF: never clip when Column B is hidden
   interface ColDef {
     header: string;
     key: string;
@@ -42,28 +43,27 @@ export async function exportQuotationToExcel(quote: QuotationDocument, branchPro
   }
 
   const columns: ColDef[] = [
-    { header: 'S.No.', key: 'sno', width: 7, align: 'center' }
+    { header: 'S.No.', key: 'sno', width: 16, align: 'center' },                               // Col 1 (A)
+    { header: 'Product Code', key: 'code', width: 17, align: 'left' },                           // Col 2 (B) - Can be hidden
+    { header: 'Product Description & Specifications', key: 'desc', width: 44, align: 'left' },  // Col 3 (C)
+    { header: 'Image', key: 'img', width: 18, align: 'center' },                                // Col 4 (D)
+    { header: 'Qty', key: 'qty', width: 8, align: 'center' },                                   // Col 5 (E)
+    { header: 'List Price (₹)', key: 'listPrice', width: 15, align: 'right' },                  // Col 6 (F) - Can be hidden
+    { header: 'Disc %', key: 'discount', width: 10, align: 'center' },                          // Col 7 (G) - Can be hidden
+    { header: 'Unit Price (₹)', key: 'unitPrice', width: 15, align: 'right' },                  // Col 8 (H)
+    { header: 'Total (₹)', key: 'total', width: 17, align: 'right' }                            // Col 9 (I)
   ];
 
-  if (quote.showCode) {
-    columns.push({ header: 'Product Code', key: 'code', width: 17, align: 'left' });
-  }
-
-  // Merged Product Description with Line-by-Line Specifications
-  columns.push({ header: 'Product Description & Specifications', key: 'desc', width: 44, align: 'left' });
-  columns.push({ header: 'Image', key: 'img', width: 18, align: 'center' });
-  columns.push({ header: 'Qty', key: 'qty', width: 8, align: 'center' });
-
-  if (quote.showDiscount) {
-    columns.push({ header: 'List Price (₹)', key: 'listPrice', width: 15, align: 'right' });
-    columns.push({ header: 'Disc %', key: 'discount', width: 10, align: 'center' });
-  }
-
-  columns.push({ header: 'Unit Price (₹)', key: 'unitPrice', width: 15, align: 'right' });
-  columns.push({ header: 'Total (₹)', key: 'total', width: 17, align: 'right' });
-
-  const totalColCount = columns.length;
+  const totalColCount = 9;
+  const totalColLetter = 'I';
   ws.columns = columns.map(c => ({ width: c.width }));
+
+  // Excel Native Column Hiding:
+  // If showCode is false -> Hide Column B (Product Code) in Excel
+  // If showDiscount is false -> Hide Column F (List Price) and Column G (Disc %) in Excel
+  ws.getColumn(2).hidden = !quote.showCode;
+  ws.getColumn(6).hidden = !quote.showDiscount;
+  ws.getColumn(7).hidden = !quote.showDiscount;
 
   // Helper function to style rectangular ranges cleanly across all cells
   const styleRange = (
@@ -108,32 +108,31 @@ export async function exportQuotationToExcel(quote: QuotationDocument, branchPro
   };
 
   // Set Row Heights for Header Rows 1 to 4
-  ws.getRow(1).height = 22;
+  ws.getRow(1).height = 24;
   ws.getRow(2).height = 20;
   ws.getRow(3).height = 20;
   ws.getRow(4).height = 20;
 
-  // Determine column splits for Header Banner
-  // If logo is present: Columns 1 & 2 are reserved ONLY for the logo!
-  // Columns 3 to midCol are for company text.
-  // Columns midCol+1 to totalColCount are for QUOTATION & Ref.
-  const logoCols = hasLogo ? 2 : 0;
-  const midCol = Math.max(logoCols + 1, Math.min(totalColCount - 2, Math.floor(totalColCount * 0.55)));
-  const midColLetter = getColLetter(midCol);
-  const nextMidCol = midCol + 1;
-  const nextMidColLetter = getColLetter(nextMidCol);
-  const totalColLetter = getColLetter(totalColCount);
+  // Fill entire banner background (Rows 1-4, Cols A to I) with seamless studio theme
+  // No internal vertical gridlines, matching website's elegant continuous banner
+  for (let r = 1; r <= 4; r++) {
+    for (let c = 1; c <= totalColCount; c++) {
+      const cell = ws.getCell(r, c);
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bannerColor } };
+      cell.border = {
+        top: r === 1 ? { style: 'thin', color: { argb: 'FF683318' } } : undefined,
+        bottom: r === 4 ? { style: 'thin', color: { argb: 'FF683318' } } : undefined,
+        left: c === 1 ? { style: 'thin', color: { argb: 'FF683318' } } : undefined,
+        right: c === totalColCount ? { style: 'thin', color: { argb: 'FF683318' } } : undefined
+      };
+    }
+  }
 
-  // Fill entire banner background (Rows 1-4, Cols 1 to totalColCount)
-  styleRange(1, 1, 4, totalColCount, {
-    fillColor: bannerColor,
-    borderColor: 'FF683318'
-  });
-
-  // 1. EMBED LOGO IN DEDICATED SEPARATE RANGE (Columns A & B)
+  // 1. EMBED LOGO IN DEDICATED SEPARATE RANGE (Columns A & B, origin A1)
+  // When Column B is hidden, origin A1 has width 16 (~125px), keeping logo centered and visible!
+  ws.mergeCells('A1:B4');
   if (hasLogo && branch?.logoUrl) {
     try {
-      ws.mergeCells(`A1:B4`);
       const base64Data = branch.logoUrl.split(',')[1];
       const extMatch = branch.logoUrl.match(/data:image\/([a-zA-Z]+);/);
       const ext = extMatch ? (extMatch[1] === 'jpeg' ? 'jpeg' : 'png') : 'png';
@@ -141,56 +140,53 @@ export async function exportQuotationToExcel(quote: QuotationDocument, branchPro
         base64: base64Data,
         extension: ext as 'png' | 'jpeg',
       });
-      // Position logo neatly inside A1:B4 with ample padding so it never touches borders
       ws.addImage(logoId, {
-        tl: { col: 0.15, row: 0.2 },
+        tl: { col: 0.12, row: 0.2 },
         ext: { width: 110, height: 56 },
-        editAs: 'oneCell'
+        editAs: 'absolute'
       });
     } catch (err) {
       console.warn('Branch logo embedding fallback:', err);
     }
   }
 
-  // 2. COMPANY DETAILS (Starts at C1 if logo present, else A1)
-  const textStartColLetter = hasLogo ? 'C' : 'A';
-  ws.mergeCells(`${textStartColLetter}1:${midColLetter}4`);
-  const cInfo = ws.getCell(`${textStartColLetter}1`);
-  cInfo.value = `${companyName}\n${tagline}\n${address}\nGSTIN: ${gstin} | ${email}${phone}`;
-  cInfo.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 11 };
+  // 2. COMPANY DETAILS & ADDRESS (Columns C to G, origin C1)
+  // Seamlessly spans all columns up to Column H. No empty gap in the middle!
+  // Rich text typography matching website (Image 3)
+  ws.mergeCells('C1:G4');
+  const cInfo = ws.getCell('C1');
+  cInfo.value = {
+    richText: [
+      { font: { size: 16, bold: true, color: { argb: 'FFF5EEE6' } }, text: `${companyName}\n` },
+      { font: { size: 10, italic: true, bold: true, color: { argb: accentColor } }, text: `${tagline}\n` },
+      { font: { size: 9, color: { argb: 'FFE8DFD6' } }, text: `${address}\n` },
+      { font: { size: 8.5, color: { argb: 'FFD4C5B5' } }, text: `GSTIN: ${gstin} • ${email}${phone}` }
+    ]
+  };
   cInfo.alignment = { wrapText: true, vertical: 'middle', horizontal: 'left', indent: 1 };
 
-  // 3. QUOTATION TITLE & PROPOSAL DETAILS (Right Side)
-  ws.mergeCells(`${nextMidColLetter}1:${totalColLetter}4`);
-  const cRight = ws.getCell(`${nextMidColLetter}1`);
-  cRight.value = `QUOTATION\nQuote Ref: #${quote.quoteNum || branch?.quotePrefix || 'AL'}\nDate: ${date}\n${branchLocation}`;
-  cRight.font = { color: { argb: accentColor }, bold: true, size: 13 };
+  // 3. QUOTATION TITLE & PROPOSAL DETAILS (Columns H to I, origin H1)
+  // Columns H (Unit Price) & I (Total) are NEVER hidden. Width = 15 + 17 = 32 characters!
+  // Rich text typography matching website (Image 3)
+  ws.mergeCells('H1:I4');
+  const cRight = ws.getCell('H1');
+  cRight.value = {
+    richText: [
+      { font: { size: 16, bold: true, color: { argb: accentColor } }, text: 'QUOTATION\n' },
+      { font: { size: 9.5, bold: false, color: { argb: 'FFFFFFFF' } }, text: 'Luminaire Specification & Price Proposal\n' },
+      { font: { size: 11, bold: true, color: { argb: 'FFF2CF8C' } }, text: `# ${quote.quoteNum || branch?.quotePrefix || 'AL-001'}\n` },
+      { font: { size: 9, color: { argb: 'FFE8DFD6' } }, text: branchLocation }
+    ]
+  };
   cRight.alignment = { wrapText: true, vertical: 'middle', horizontal: 'right', indent: 1 };
 
-  // 4. BALANCED 2-ROW CLIENT & PROJECT METADATA CARD (Rows 5 & 6)
-  // Row 5: Client Name & Quotation Date
-  // Row 6: Project/Ref & Issuing Studio
-  ws.getRow(5).height = 23;
-  ws.getRow(6).height = 21;
+  // 4. CLEAN METADATA CARD: ROW 5 (CLIENT NAME & QUOTATION DATE)
+  // Matches website layout exactly (Image 3) — PROJECT / REF and ISSUING STUDIO row removed per request
+  ws.getRow(5).height = 24;
 
-  const metaLabelEndCol = totalColCount <= 6 ? 1 : 2;
-  const metaLabelEndLetter = getColLetter(metaLabelEndCol);
-  const metaValStartCol = metaLabelEndCol + 1;
-  const metaValStartLetter = getColLetter(metaValStartCol);
-  const metaValEndCol = midCol;
-  const metaValEndLetter = getColLetter(metaValEndCol);
-
-  const metaRightLabelStartCol = nextMidCol;
-  const metaRightLabelStartLetter = getColLetter(metaRightLabelStartCol);
-  const metaRightLabelEndCol = totalColCount <= 7 ? nextMidCol : Math.min(totalColCount - 1, nextMidCol + 1);
-  const metaRightLabelEndLetter = getColLetter(metaRightLabelEndCol);
-  const metaRightValStartCol = metaRightLabelEndCol + 1;
-  const metaRightValStartLetter = getColLetter(metaRightValStartCol);
-
-  // --- ROW 5 ---
-  // A5:B5 -> "CLIENT NAME:"
-  ws.mergeCells(`A5:${metaLabelEndLetter}5`);
-  styleRange(5, 1, 5, metaLabelEndCol, {
+  // A5:B5 -> "CLIENT NAME:" (Origin A5, width 16 min, never clips even if Column B is hidden!)
+  ws.mergeCells('A5:B5');
+  styleRange(5, 1, 5, 2, {
     fillColor: bannerColor,
     borderColor: 'FFD9CBB9',
     font: { color: { argb: 'FFFFFFFF' }, bold: true, size: 9.5 },
@@ -198,81 +194,38 @@ export async function exportQuotationToExcel(quote: QuotationDocument, branchPro
   });
   ws.getCell('A5').value = 'CLIENT NAME:';
 
-  // C5:midCol5 -> Client Name Value
-  ws.mergeCells(`${metaValStartLetter}5:${metaValEndLetter}5`);
-  styleRange(5, metaValStartCol, 5, metaValEndCol, {
+  // C5:G5 -> Client Name Value (Origin C5, width 70 to 95, never hidden!)
+  ws.mergeCells('C5:G5');
+  styleRange(5, 3, 5, 7, {
     fillColor: 'FFFDFAF6',
     borderColor: 'FFD9CBB9',
     font: { color: { argb: 'FF17191C' }, bold: true, size: 10.5 },
     alignment: { vertical: 'middle', horizontal: 'left', indent: 1 }
   });
-  ws.getCell(`${metaValStartLetter}5`).value = client;
+  ws.getCell('C5').value = client;
 
-  // Right Label 5 -> "QUOTE DATE:"
-  ws.mergeCells(`${metaRightLabelStartLetter}5:${metaRightLabelEndLetter}5`);
-  styleRange(5, metaRightLabelStartCol, 5, metaRightLabelEndCol, {
+  // H5 -> "QUOTE DATE:" (Column H is Unit Price, never hidden!)
+  styleRange(5, 8, 5, 8, {
     fillColor: bannerColor,
     borderColor: 'FFD9CBB9',
     font: { color: { argb: 'FFFFFFFF' }, bold: true, size: 9.5 },
     alignment: { vertical: 'middle', horizontal: 'center' }
   });
-  ws.getCell(`${metaRightLabelStartLetter}5`).value = 'QUOTE DATE:';
+  ws.getCell('H5').value = 'QUOTE DATE:';
 
-  // Right Value 5 -> Date Value
-  ws.mergeCells(`${metaRightValStartLetter}5:${totalColLetter}5`);
-  styleRange(5, metaRightValStartCol, 5, totalColCount, {
+  // I5 -> Date Value (Column I is Total, never hidden!)
+  styleRange(5, 9, 5, 9, {
     fillColor: 'FFFDFAF6',
     borderColor: 'FFD9CBB9',
     font: { color: { argb: 'FF17191C' }, bold: true, size: 10 },
     alignment: { vertical: 'middle', horizontal: 'center' }
   });
-  ws.getCell(`${metaRightValStartLetter}5`).value = date;
+  ws.getCell('I5').value = date;
 
-  // --- ROW 6 ---
-  // A6:B6 -> "PROJECT / REF:"
-  ws.mergeCells(`A6:${metaLabelEndLetter}6`);
-  styleRange(6, 1, 6, metaLabelEndCol, {
-    fillColor: bannerColor,
-    borderColor: 'FFD9CBB9',
-    font: { color: { argb: 'FFFFFFFF' }, bold: true, size: 9 },
-    alignment: { vertical: 'middle', horizontal: 'center' }
-  });
-  ws.getCell('A6').value = 'PROJECT / REF:';
-
-  // C6:midCol6 -> Project Title
-  ws.mergeCells(`${metaValStartLetter}6:${metaValEndLetter}6`);
-  styleRange(6, metaValStartCol, 6, metaValEndCol, {
-    fillColor: 'FFFFFFFF',
-    borderColor: 'FFD9CBB9',
-    font: { color: { argb: 'FF333333' }, bold: false, size: 9.5 },
-    alignment: { vertical: 'middle', horizontal: 'left', indent: 1 }
-  });
-  ws.getCell(`${metaValStartLetter}6`).value = quote.name || 'Architectural Lighting Proposal';
-
-  // Right Label 6 -> "ISSUING STUDIO:"
-  ws.mergeCells(`${metaRightLabelStartLetter}6:${metaRightLabelEndLetter}6`);
-  styleRange(6, metaRightLabelStartCol, 6, metaRightLabelEndCol, {
-    fillColor: bannerColor,
-    borderColor: 'FFD9CBB9',
-    font: { color: { argb: 'FFFFFFFF' }, bold: true, size: 9 },
-    alignment: { vertical: 'middle', horizontal: 'center' }
-  });
-  ws.getCell(`${metaRightLabelStartLetter}6`).value = 'ISSUING STUDIO:';
-
-  // Right Value 6 -> Branch Location
-  ws.mergeCells(`${metaRightValStartLetter}6:${totalColLetter}6`);
-  styleRange(6, metaRightValStartCol, 6, totalColCount, {
-    fillColor: 'FFFFFFFF',
-    borderColor: 'FFD9CBB9',
-    font: { color: { argb: 'FF333333' }, bold: false, size: 9.5 },
-    alignment: { vertical: 'middle', horizontal: 'center' }
-  });
-  ws.getCell(`${metaRightValStartLetter}6`).value = `${companyName} (${branchLocationShort})`;
-
-  // 5. TABLE HEADERS (Row 7)
-  const row7 = ws.getRow(7);
+  // 5. TABLE HEADERS (Row 6)
+  const row6 = ws.getRow(6);
   columns.forEach((col, idx) => {
-    const cell = row7.getCell(idx + 1);
+    const cell = row6.getCell(idx + 1);
     cell.value = col.header;
     cell.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 9.5 };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bannerColor } };
@@ -284,10 +237,10 @@ export async function exportQuotationToExcel(quote: QuotationDocument, branchPro
       right: { style: 'thin', color: { argb: 'FFD9CBB9' } }
     };
   });
-  row7.height = 28;
+  row6.height = 28;
 
   // 6. DATA ROWS WITH HIGH-PRECISION EMBEDDED FIXTURE IMAGES
-  let currentRow = 8;
+  let currentRow = 7;
   let subtotal = 0;
 
   quote.items.forEach((item, idx) => {
@@ -296,21 +249,16 @@ export async function exportQuotationToExcel(quote: QuotationDocument, branchPro
     const rowTotal = (Number(item.price) || 0) * (Number(item.qty) || 0);
     subtotal += rowTotal;
 
-    let cIndex = 1;
+    // Fixed Column 1 (A): S.No
+    row.getCell(1).value = idx + 1;
+    row.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
 
-    // S.No
-    row.getCell(cIndex).value = idx + 1;
-    row.getCell(cIndex).alignment = { horizontal: 'center', vertical: 'middle' };
-    cIndex++;
+    // Fixed Column 2 (B): Product Code (Always in Col 2, hidden via Excel if showCode is false)
+    row.getCell(2).value = item.sku || item.code || '-';
+    row.getCell(2).alignment = { horizontal: 'left', vertical: 'middle', indent: 1, wrapText: true };
+    row.getCell(2).font = { bold: true, size: 9, color: { argb: 'FF17191C' } };
 
-    if (quote.showCode) {
-      row.getCell(cIndex).value = item.sku || item.code || '-';
-      row.getCell(cIndex).alignment = { horizontal: 'left', vertical: 'middle', indent: 1, wrapText: true };
-      cIndex++;
-    }
-
-    // Product Description & Specifications
-    // Line 1 & Line 2 in SAME line: Product Description + (Watt & CCT)
+    // Fixed Column 3 (C): Product Description & Specifications
     const title = item.name || item.desc || 'Architectural Lighting Fixture';
     const wattCctParts: string[] = [];
     if (item.watt) wattCctParts.push(`⚡ Power: ${item.watt}`);
@@ -318,41 +266,23 @@ export async function exportQuotationToExcel(quote: QuotationDocument, branchPro
     const line1and2 = wattCctParts.length > 0 ? `${title} — ${wattCctParts.join(' | ')}` : title;
 
     const descLines: string[] = [line1and2];
-
-    // Line 3: Beam Angle SEPARATE line
-    if (item.beam) {
-      descLines.push(`🎯 Beam Angle: ${item.beam}`);
-    }
-
-    // Line 4: CRI SEPARATE line
-    if (item.cri) {
-      descLines.push(`🎨 CRI: ${item.cri}`);
-    }
-
-    // Line 5: IP Rating SEPARATE line
-    if (item.ip) {
-      descLines.push(`🛡️ IP Rating: ${item.ip}`);
-    }
-
-    // Line 6: Body Finish & Reflector in SAME line
+    if (item.beam) descLines.push(`🎯 Beam Angle: ${item.beam}`);
+    if (item.cri) descLines.push(`🎨 CRI: ${item.cri}`);
+    if (item.ip) descLines.push(`🛡️ IP Rating: ${item.ip}`);
     const finishReflParts: string[] = [];
     if (item.finish) finishReflParts.push(`✨ Body Finish: ${item.finish}`);
     if (item.reflector) finishReflParts.push(`🔆 Reflector: ${item.reflector}`);
-    if (finishReflParts.length > 0) {
-      descLines.push(finishReflParts.join(' | '));
-    }
+    if (finishReflParts.length > 0) descLines.push(finishReflParts.join(' | '));
 
-    const descCell = row.getCell(cIndex);
+    const descCell = row.getCell(3);
     descCell.value = descLines.join('\n');
     descCell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true, indent: 1 };
     descCell.font = { size: 9, color: { argb: 'FF17191C' } };
-    cIndex++;
 
     // Adjust row height dynamically so all specification lines fit cleanly
     row.height = Math.max(68, 20 + descLines.length * 15);
 
-    // Image column — Cleanly centered and scaled without clipping
-    const imgColIndex = cIndex;
+    // Fixed Column 4 (D): Image — Centered cleanly in Column D (never hidden)
     if (item.img && item.img.startsWith('data:image')) {
       try {
         const base64Data = item.img.split(',')[1];
@@ -362,9 +292,8 @@ export async function exportQuotationToExcel(quote: QuotationDocument, branchPro
           base64: base64Data,
           extension: ext as 'png' | 'jpeg',
         });
-        // 54px x 50px fits comfortably inside width 18 (~140px) and row height 60 (~80px)
         ws.addImage(imageId, {
-          tl: { col: imgColIndex - 1 + 0.18, row: currentRow - 1 + 0.08 },
+          tl: { col: 3.18, row: currentRow - 1 + 0.08 },
           ext: { width: 54, height: 50 },
           editAs: 'oneCell'
         });
@@ -372,37 +301,32 @@ export async function exportQuotationToExcel(quote: QuotationDocument, branchPro
         console.warn('Image embedding fallback:', err);
       }
     }
-    row.getCell(cIndex).alignment = { horizontal: 'center', vertical: 'middle' };
-    cIndex++;
+    row.getCell(4).alignment = { horizontal: 'center', vertical: 'middle' };
 
-    // Qty
-    row.getCell(cIndex).value = Number(item.qty) || 0;
-    row.getCell(cIndex).alignment = { horizontal: 'center', vertical: 'middle' };
-    row.getCell(cIndex).font = { bold: true, size: 10 };
-    cIndex++;
+    // Fixed Column 5 (E): Qty
+    row.getCell(5).value = Number(item.qty) || 0;
+    row.getCell(5).alignment = { horizontal: 'center', vertical: 'middle' };
+    row.getCell(5).font = { bold: true, size: 10 };
 
-    if (quote.showDiscount) {
-      row.getCell(cIndex).value = Number(item.listPrice) || 0;
-      row.getCell(cIndex).alignment = { horizontal: 'right', vertical: 'middle' };
-      row.getCell(cIndex).numFmt = '#,##0.00';
-      cIndex++;
+    // Fixed Column 6 (F): List Price (Always in Col 6, hidden via Excel if showDiscount is false)
+    row.getCell(6).value = Number(item.listPrice) || Number(item.price) || 0;
+    row.getCell(6).alignment = { horizontal: 'right', vertical: 'middle' };
+    row.getCell(6).numFmt = '#,##0.00';
 
-      row.getCell(cIndex).value = (Number(item.discount) || 0) + '%';
-      row.getCell(cIndex).alignment = { horizontal: 'center', vertical: 'middle' };
-      cIndex++;
-    }
+    // Fixed Column 7 (G): Disc % (Always in Col 7, hidden via Excel if showDiscount is false)
+    row.getCell(7).value = (Number(item.discount) || 0) + '%';
+    row.getCell(7).alignment = { horizontal: 'center', vertical: 'middle' };
 
-    // Unit Price
-    row.getCell(cIndex).value = Number(item.price) || 0;
-    row.getCell(cIndex).alignment = { horizontal: 'right', vertical: 'middle' };
-    row.getCell(cIndex).numFmt = '#,##0.00';
-    cIndex++;
+    // Fixed Column 8 (H): Unit Price
+    row.getCell(8).value = Number(item.price) || 0;
+    row.getCell(8).alignment = { horizontal: 'right', vertical: 'middle' };
+    row.getCell(8).numFmt = '#,##0.00';
 
-    // Total Amount
-    row.getCell(cIndex).value = Number(rowTotal) || 0;
-    row.getCell(cIndex).alignment = { horizontal: 'right', vertical: 'middle' };
-    row.getCell(cIndex).font = { bold: true };
-    row.getCell(cIndex).numFmt = '#,##0.00';
+    // Fixed Column 9 (I): Total Amount
+    row.getCell(9).value = Number(rowTotal) || 0;
+    row.getCell(9).alignment = { horizontal: 'right', vertical: 'middle' };
+    row.getCell(9).font = { bold: true };
+    row.getCell(9).numFmt = '#,##0.00';
 
     // Borders & zebra striping
     const isOdd = (currentRow % 2 !== 0);
@@ -426,9 +350,11 @@ export async function exportQuotationToExcel(quote: QuotationDocument, branchPro
   const grandTotal = subtotal + (taxHalf * 2);
 
   const addTotalRow = (label: string, value: number, isGrand: boolean) => {
-    const labelStartCol = Math.max(1, totalColCount - 4);
-    const labelEndCol = totalColCount - 1;
-    const valueCol = totalColCount;
+    // Label merged across Columns 4 to 8 (D to H). Origin D is never hidden.
+    // Visible width even when F & G are hidden = 18 (D) + 8 (E) + 15 (H) = 41 characters!
+    const labelStartCol = 4;
+    const labelEndCol = 8;
+    const valueCol = 9;
 
     ws.mergeCells(`${getColLetter(labelStartCol)}${currentRow}:${getColLetter(labelEndCol)}${currentRow}`);
     const r = ws.getRow(currentRow);

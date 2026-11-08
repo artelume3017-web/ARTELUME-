@@ -1,0 +1,6 @@
+{
+  "summary": "Detailed technical explanation and implementation script for Client Excel Export when Columns B (Product Code), F (List Price), and G (Discount %) are hidden. Guarantees that the Studio Logo, Client Name, Project/Ref, and Quotation Header remain 100% visible, beautifully proportioned, and secure from unauthorized unhiding.",
+  "updatedAt": "2026-11-05T05:23:00.779511006Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

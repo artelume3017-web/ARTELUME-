@@ -63,6 +63,9 @@ export interface QuotationPaymentRecord {
   receiptNumber: string;       // e.g. RCP-2026-001
   verifiedByAdmin: boolean;    // Bank audit flag
   notes?: string;
+  mode?: 'UPI' | 'NEFT / RTGS' | 'Cash' | 'Cheque' | string;
+  ref?: string;
+  receivedBy?: string;
 }
 
 export interface DeliveryChallanItem {
@@ -108,6 +111,7 @@ export interface DeliveryChallan {
 }
 
 export interface QuotationDocument {
+  id?: string;
   quoteNum: string;
   name?: string;
   status: 'Draft' | 'Sent' | 'Accepted' | 'Advance Received' | 'Dispatched' | 'Delivered' | 'Rejected' | 'Accepted & Paid';

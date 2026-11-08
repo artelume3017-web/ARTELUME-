@@ -1,0 +1,6 @@
+{
+  "summary": "Architectural review script and implementation plan for the side-docked Product Catalog & Stock Items Drawer. Allows users to view stock items and technical specifications side-by-side with their quotation table, with 1-click row population, search, category filtering, and responsive split-screen docking.",
+  "updatedAt": "2026-11-04T13:13:16.609830303Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

@@ -279,11 +279,11 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
 
                           {/* Line 2: Optical & Electrical Specs */}
                           <div className="text-[10.5px] text-gray-600 space-x-2">
-                            {item.beam && <span>📐 Beam: {item.beam}</span>}
-                            {item.cri && <span>🎯 CRI: {item.cri}</span>}
-                            {item.ip && <span>🛡️ IP: {item.ip}</span>}
-                            {item.finish && <span>✨ Finish: {item.finish}</span>}
-                            {item.reflector && <span>🔆 Reflector: {item.reflector}</span>}
+                            {(quote.showBeam ?? true) && item.beam && <span>📐 Beam: {item.beam}</span>}
+                            {(quote.showCRI ?? true) && item.cri && <span>🎯 CRI: {item.cri}</span>}
+                            {(quote.showIP ?? true) && item.ip && <span>🛡️ IP: {item.ip}</span>}
+                            {(quote.showFinish ?? true) && item.finish && <span>✨ Finish: {item.finish}</span>}
+                            {(quote.showReflector ?? true) && item.reflector && <span>🔆 Reflector: {item.reflector}</span>}
                           </div>
                         </td>
 

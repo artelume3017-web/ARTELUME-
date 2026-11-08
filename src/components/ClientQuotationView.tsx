@@ -330,27 +330,27 @@ export const ClientQuotationView: React.FC<ClientQuotationViewProps> = ({
 
                         {/* Line 2: Technical Specifications Breakdown */}
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-600">
-                          {item.beam && (
+                          {(quote.showBeam ?? true) && item.beam && (
                             <span className="text-gray-700">
                               📐 Beam: <strong className="text-gray-900">{item.beam}</strong>
                             </span>
                           )}
-                          {item.cri && (
+                          {(quote.showCRI ?? true) && item.cri && (
                             <span className="text-gray-700">
                               🎯 CRI: <strong className="text-gray-900">{item.cri}</strong>
                             </span>
                           )}
-                          {item.ip && (
+                          {(quote.showIP ?? true) && item.ip && (
                             <span className="text-gray-700">
                               🛡️ IP: <strong className="text-gray-900">{item.ip}</strong>
                             </span>
                           )}
-                          {item.finish && (
+                          {(quote.showFinish ?? true) && item.finish && (
                             <span className="text-gray-700">
                               ✨ Finish: <strong className="text-gray-900">{item.finish}</strong>
                             </span>
                           )}
-                          {item.reflector && (
+                          {(quote.showReflector ?? true) && item.reflector && (
                             <span className="text-gray-700">
                               🔆 Reflector: <strong className="text-gray-900">{item.reflector}</strong>
                             </span>

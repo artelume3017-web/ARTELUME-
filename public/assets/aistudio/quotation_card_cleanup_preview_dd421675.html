@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quotation Card Declutter Preview — Artelume</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #0b0f17 !important;
+      color: #f1f5f9 !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      padding: 24px 16px;
+      line-height: 1.5;
+    }
+    .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+    
+    .card-banner {
+      background: #141b27;
+      border: 1px solid #243144;
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .badge-green { background: #064e3b; color: #6ee7b7; border: 1px solid #059669; }
+    .badge-gold { background: #78350f; color: #fde68a; border: 1px solid #d97706; }
+    
+    /* Main Quotation Card */
+    .quote-card {
+      background: #121824;
+      border: 1px solid #243144;
+      border-radius: 18px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    .quote-card:hover { border-color: #3b82f6; }
+
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid #1e293b;
+    }
+    .quote-tag {
+      background: #000;
+      color: #df9c20;
+      border: 1px solid #334155;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 800;
+      font-size: 12px;
+    }
+    .quote-title { font-size: 17px; font-weight: 800; color: #ffffff; }
+    .price-tag { font-size: 18px; font-weight: 900; color: #ffffff; }
+
+    /* Action Toolbar Row */
+    .toolbar-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-top: 14px;
+      border-top: 1px solid #1e293b;
+    }
+
+    .btn-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    .btn-hub {
+      padding: 7px 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+    
+    /* Material Matrix side-by-side button */
+    .btn-matrix {
+      background: #0f2744;
+      color: #bae6fd;
+      border-color: #0284c7;
+    }
+    .btn-matrix:hover { background: #0284c7; color: #ffffff; }
+
+    .btn-pay {
+      background: #2a1f10;
+      color: #fde68a;
+      border-color: #d97706;
+    }
+    .btn-pay:hover { background: #d97706; color: #000000; }
+
+    .btn-export {
+      background: #1e293b;
+      color: #f8fafc;
+      border-color: #475569;
+    }
+    .btn-export:hover { background: #334155; }
+
+    .btn-del {
+      background: transparent;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      padding: 7px 10px;
+      border-radius: 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .btn-del:hover { background: #450a0a; color: #f87171; border-color: #ef4444; }
+
+    /* Popover Menus */
+    .popover-menu {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 8px);
+      right: 0;
+      background: #182232;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      width: 240px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
+      padding: 8px;
+      z-index: 50;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .popover-menu.active { display: flex; }
+    .popover-header {
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: 800;
+      color: #94a3b8;
+      padding: 6px 10px;
+      border-bottom: 1px solid #243144;
+      margin-bottom: 4px;
+    }
+    .popover-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      color: #f1f5f9;
+      background: transparent;
+      border: none;
+      width: 100%;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .popover-item:hover { background: #263345; }
+    .popover-sub { font-size: 10px; color: #94a3b8; font-weight: normal; }
+
+    .matrix-modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .matrix-modal-backdrop.active { display: flex; }
+    .matrix-modal-box {
+      background: #101622;
+      border: 1px solid #334155;
+      border-radius: 20px;
+      max-width: 900px;
+      width: 100%;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+      gap: 16px;
+      overflow-y: auto;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th { background: #16202e; color: #94a3b8; padding: 10px; text-align: left; border: 1px solid #243144; }
+    td { padding: 9px 10px; border: 1px solid #243144; color: #e2e8f0; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Overview Banner -->
+    <div class="card-banner">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <div style="font-size: 18px; font-weight: 800; color: #ffffff;">
+          ✨ Quotation Card: Cleaned &amp; Combined Action Toolbar
+        </div>
+        <span class="badge badge-green">✓ Built &amp; Live in App</span>
+      </div>
+      <p style="font-size: 13px; color: #94a3b8;">
+        Notice how <strong>📊 Material Matrix</strong> is now set right <strong>inside / side-by-side with 💳 Payments</strong>:
+      </p>
+    </div>
+
+    <!-- THE STREAMLINED QUOTATION CARD -->
+    <div class="quote-card">
+      
+      <!-- Top Header -->
+      <div class="header-row">
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <span class="quote-tag font-mono">#AL-3017-001</span>
+          <span class="quote-title">Mr. jahingir</span>
+          <span style="font-size: 12px; color: #94a3b8;">📅 5-Nov-2026</span>
+          <span class="badge badge-green">✓ Delivered</span>
+          <span class="badge badge-gold">🏛️ Craft Studio</span>
+        </div>
+        <div>
+          <div style="font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 700;">Total (incl. GST)</div>
+          <div class="price-tag font-mono">₹2,63,376</div>
+        </div>
+      </div>
+
+      <!-- Middle Info -->
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; color: #94a3b8;">
+        <div>
+          Client: <strong style="color: #ffffff;">Mr. jahingir</strong> • Site: <strong style="color: #ffffff;">📍 Jubilee Hills Villa</strong> • Items: <strong style="color: #ffffff;">2 line items (80 Units)</strong>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <span class="badge badge-green">✓ Paid: ₹2,63,376</span>
+          <span class="badge badge-green">✓ Fully Settled</span>
+        </div>
+      </div>
+
+      <!-- Streamlined Action Toolbar (Matrix set side-by-side with Payments) -->
+      <div class="toolbar-row">
+        <div style="font-size: 11px; color: #64748b;">
+          Last updated: 5-Nov-2026
+        </div>
+
+        <div class="btn-group">
+          
+          <!-- 1. CUMULATIVE MATERIAL MATRIX (Side-by-side with Payments) -->
+          <button class="btn-hub btn-matrix" onclick="openModal()" title="View Cumulative Material Matrix table across all 5 phases">
+            <span>📊</span>
+            <span>Matrix (80/80 • 100%)</span>
+            <span style="font-size: 12px; font-weight: 900; color: #38bdf8;">↗</span>
+          </button>
+
+          <!-- 2. COMBINED PAYMENTS HUB (Pay + Receipts in One) -->
+          <div style="position: relative;">
+            <button id="pay-btn" class="btn-hub btn-pay" onclick="toggleMenu('pay-menu')">
+              <span>💳</span>
+              <span>Payments (2)</span>
+              <span style="font-size: 10px;">▾</span>
+            </button>
+
+            <!-- Dropdown Menu -->
+            <div id="pay-menu" class="popover-menu">
+              <div class="popover-header">Payments &amp; Receipts</div>
+              <button class="popover-item" onclick="alert('💳 Opening Payment Collection Modal to collect or record payment...'); closeAllMenus();">
+                <span style="font-size: 15px;">💳</span>
+                <div>
+                  <div>Record New Payment</div>
+                  <div class="popover-sub">Collect via UPI, Cash, or Cheque</div>
+                </div>
+              </button>
+              <button class="popover-item" onclick="alert('🧾 Opening Receipts Modal (2 receipts logged for Mr. jahingir)...'); closeAllMenus();">
+                <span style="font-size: 15px;">🧾</span>
+                <div>
+                  <div>View Receipts (2)</div>
+                  <div class="popover-sub">Print or download official money receipts</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- 3. CONSOLIDATED EXPORT HUB (Print, Excel, Duplicate in One) -->
+          <div style="position: relative;">
+            <button id="export-btn" class="btn-hub btn-export" onclick="toggleMenu('export-menu')">
+              <span>📤</span>
+              <span>Export</span>
+              <span style="font-size: 10px;">▾</span>
+            </button>
+
+            <!-- Dropdown Menu -->
+            <div id="export-menu" class="popover-menu">
+              <div class="popover-header">Export &amp; Share</div>
+              <button class="popover-item" onclick="alert('🖨️ Opening Print dialogue for Quotation #AL-3017-001...'); closeAllMenus();">
+                <span style="font-size: 15px;">🖨️</span>
+                <div>
+                  <div>Print / Save PDF</div>
+                  <div class="popover-sub">Official presentation proposal</div>
+                </div>
+              </button>
+              <button class="popover-item" onclick="alert('📗 Exporting Quotation #AL-3017-001 to formatted Excel (.xlsx)...'); closeAllMenus();">
+                <span style="font-size: 15px;">📗</span>
+                <div>
+                  <div>Excel Spreadsheet</div>
+                  <div class="popover-sub">Download formatted .xlsx</div>
+                </div>
+              </button>
+              <button class="popover-item" onclick="alert('📋 Duplicating Quotation #AL-3017-001 into a new draft...'); closeAllMenus();">
+                <span style="font-size: 15px;">📋</span>
+                <div>
+                  <div>Duplicate Quote</div>
+                  <div class="popover-sub">Clone line items to new draft</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- 4. DISCRETE DELETE BUTTON -->
+          <button class="btn-del" onclick="alert('Confirm deleting quotation #AL-3017-001? (Owner action only)');" title="Delete quotation">
+            🗑️
+          </button>
+
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- CUMULATIVE MATERIAL MATRIX MODAL -->
+  <div id="matrix-modal" class="matrix-modal-backdrop" onclick="if(event.target === this) closeModal();">
+    <div class="matrix-modal-box">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #243144; padding-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 24px;">📊</span>
+          <div>
+            <div style="font-size: 16px; font-weight: 800; color: #ffffff;">Cumulative Material Matrix (Everything in One Table)</div>
+            <div style="font-size: 11px; color: #94a3b8;">#AL-3017-001 • Mr. jahingir • 80 Units Ordered</div>
+          </div>
+        </div>
+        <button onclick="closeModal()" style="background: #243144; border: none; color: #ffffff; width: 30px; height: 30px; border-radius: 50%; cursor: pointer;">✕</button>
+      </div>
+
+      <div style="overflow-x: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 40px; text-align: center;">S.No</th>
+              <th>SKU / Code</th>
+              <th>Fixture Description</th>
+              <th style="text-align: center;">Ordered</th>
+              <th style="text-align: center; color: #38bdf8;">DC-001</th>
+              <th style="text-align: center; color: #38bdf8;">DC-002</th>
+              <th style="text-align: center; color: #38bdf8;">DC-003</th>
+              <th style="text-align: center; color: #38bdf8;">DC-004</th>
+              <th style="text-align: center; color: #38bdf8;">DC-005</th>
+              <th style="text-align: center; color: #4ade80;">Delivered</th>
+              <th style="text-align: center;">Pending</th>
+              <th style="text-align: center;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="text-align: center;">1</td>
+              <td class="font-mono" style="font-weight: 700; color: #fff;">LFSL1211R-Z</td>
+              <td>COBLIGHT ZIGBEE 7W CCT TUNABLE</td>
+              <td style="text-align: center; font-weight: 700;">20</td>
+              <td style="text-align: center; color: #38bdf8;">10</td>
+              <td style="text-align: center; color: #38bdf8;">10</td>
+              <td style="text-align: center; color: #64748b;">-</td>
+              <td style="text-align: center; color: #64748b;">-</td>
+              <td style="text-align: center; color: #64748b;">-</td>
+              <td style="text-align: center; font-weight: 900; color: #4ade80;">20</td>
+              <td style="text-align: center; color: #94a3b8;">0</td>
+              <td style="text-align: center;"><span class="badge badge-green">✓ Complete</span></td>
+            </tr>
+            <tr>
+              <td style="text-align: center;">2</td>
+              <td class="font-mono" style="font-weight: 700; color: #fff;">17MM</td>
+              <td>17MM SURFACE PROFILE ANODIZED</td>
+              <td style="text-align: center; font-weight: 700;">25</td>
+              <td style="text-align: center; color: #64748b;">-</td>
+              <td style="text-align: center; color: #64748b;">-</td>
+              <td style="text-align: center; color: #38bdf8;">25</td>
+              <td style="text-align: center; color: #64748b;">-</td>
+              <td style="text-align: center; color: #64748b;">-</td>
+              <td style="text-align: center; font-weight: 900; color: #4ade80;">25</td>
+              <td style="text-align: center; color: #94a3b8;">0</td>
+              <td style="text-align: center;"><span class="badge badge-green">✓ Complete</span></td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr style="font-weight: 800; background: #16202e;">
+              <td colspan="3" style="text-align: right; color: #94a3b8;">TOTAL:</td>
+              <td style="text-align: center; color: #fff;">80</td>
+              <td style="text-align: center; color: #38bdf8;">15</td>
+              <td style="text-align: center; color: #38bdf8;">20</td>
+              <td style="text-align: center; color: #38bdf8;">25</td>
+              <td style="text-align: center; color: #38bdf8;">15</td>
+              <td style="text-align: center; color: #38bdf8;">5</td>
+              <td style="text-align: center; color: #4ade80;">80</td>
+              <td style="text-align: center; color: #94a3b8;">0</td>
+              <td style="text-align: center; color: #4ade80;">✓ 100% Dispatched</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; padding-top: 10px;">
+        <button onclick="closeModal()" style="background: #334155; color: #ffffff; padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-weight: 700;">
+          Close Window
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleMenu(id) {
+      const menu = document.getElementById(id);
+      const otherId = id === 'pay-menu' ? 'export-menu' : 'pay-menu';
+      document.getElementById(otherId).classList.remove('active');
+      menu.classList.toggle('active');
+    }
+
+    function closeAllMenus() {
+      document.getElementById('pay-menu').classList.remove('active');
+      document.getElementById('export-menu').classList.remove('active');
+    }
+
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('#pay-btn') && !e.target.closest('#pay-menu') &&
+          !e.target.closest('#export-btn') && !e.target.closest('#export-menu')) {
+        closeAllMenus();
+      }
+    });
+
+    function openModal() {
+      document.getElementById('matrix-modal').classList.add('active');
+    }
+    function closeModal() {
+      document.getElementById('matrix-modal').classList.remove('active');
+    }
+  </script>
+</body>
+</html>

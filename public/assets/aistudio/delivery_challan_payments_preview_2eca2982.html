@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Delivery Challan & Site Payment Collection — Artelume</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="bg-[#0b0f17] text-neutral-100 min-h-screen p-4 sm:p-8">
+
+  <div class="max-w-5xl mx-auto space-y-6">
+
+    <!-- Top Navigation / Header -->
+    <div class="bg-[#121824] border border-neutral-800 rounded-2xl p-5 sm:p-6 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="space-y-1">
+        <div class="flex items-center gap-2">
+          <span class="text-2xl">💳</span>
+          <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+            Delivery Challan Payments &amp; Site Collection
+          </h1>
+          <span class="text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full font-bold">
+            Live Interactive Preview
+          </span>
+        </div>
+        <p class="text-xs sm:text-sm text-neutral-400">
+          How material dispatches connect to Cash-on-Delivery (COD), milestone payments, digital POD sign-off, and real-time passbook ledger.
+        </p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-neutral-400">Quotation Ref:</span>
+        <span class="font-mono text-xs font-bold bg-neutral-900 px-3 py-1.5 rounded-lg border border-neutral-700 text-[#df9c20]">
+          #AL-3017-001 — Mr. jahingir
+        </span>
+      </div>
+    </div>
+
+    <!-- Workflow Explanation Banner -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div class="bg-[#151c28] border border-neutral-800 rounded-xl p-4">
+        <div class="text-[10px] font-mono text-sky-400 uppercase font-bold tracking-wider">Step 1 • Advance</div>
+        <div class="text-sm font-bold text-white mt-1">Order Confirmation</div>
+        <div class="text-xs text-neutral-400 mt-1">Client pays initial advance (e.g. 50%) before luminaire customization &amp; testing.</div>
+      </div>
+      <div class="bg-[#151c28] border border-neutral-800 rounded-xl p-4">
+        <div class="text-[10px] font-mono text-amber-400 uppercase font-bold tracking-wider">Step 2 • Phase Dispatch</div>
+        <div class="text-sm font-bold text-white mt-1">Zero-Price Challan</div>
+        <div class="text-xs text-neutral-400 mt-1">Official delivery challan generated for driver &amp; transit check-posts (no GST tax pricing on slip).</div>
+      </div>
+      <div class="bg-[#151c28] border border-neutral-800 rounded-xl p-4">
+        <div class="text-[10px] font-mono text-purple-400 uppercase font-bold tracking-wider">Step 3 • On-Site POD</div>
+        <div class="text-sm font-bold text-white mt-1">Digital Sign + Payment</div>
+        <div class="text-xs text-neutral-400 mt-1">Site engineer inspects boxes, signs digital POD on mobile, and hands over phase payment (UPI / Cash).</div>
+      </div>
+      <div class="bg-[#151c28] border border-neutral-800 rounded-xl p-4">
+        <div class="text-[10px] font-mono text-emerald-400 uppercase font-bold tracking-wider">Step 4 • Auto-Passbook</div>
+        <div class="text-sm font-bold text-white mt-1">Real-Time Sync</div>
+        <div class="text-xs text-neutral-400 mt-1">Quotation balance drops instantly, passbook logs receipt #RCP-POD, and PDF is archived.</div>
+      </div>
+    </div>
+
+    <!-- Interactive Navigation Tabs -->
+    <div class="flex items-center gap-2 border-b border-neutral-800 pb-3">
+      <button onclick="switchTab('matrix')" id="tab-btn-matrix" class="px-4 py-2 rounded-xl text-xs font-bold bg-[#df9c20] text-black shadow-md transition cursor-pointer">
+        📊 1. Multi-Phase Financial Matrix
+      </button>
+      <button onclick="switchTab('pod')" id="tab-btn-pod" class="px-4 py-2 rounded-xl text-xs font-bold bg-neutral-800 text-neutral-300 hover:text-white transition cursor-pointer">
+        ✍️ 2. On-Site POD &amp; UPI Payment Simulator
+      </button>
+      <button onclick="switchTab('receipt')" id="tab-btn-receipt" class="px-4 py-2 rounded-xl text-xs font-bold bg-neutral-800 text-neutral-300 hover:text-white transition cursor-pointer">
+        🧾 3. Official Delivery Receipt
+      </button>
+    </div>
+
+    <!-- TAB 1: Multi-Phase Financial Matrix -->
+    <div id="tab-matrix" class="space-y-5">
+      <!-- Project Summary Metric Cards -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="bg-[#121824] border border-neutral-800 rounded-xl p-4">
+          <div class="text-[11px] text-neutral-400 font-bold uppercase">Quotation Total</div>
+          <div class="text-xl font-extrabold text-white font-mono mt-1">₹4,85,000</div>
+          <div class="text-[10px] text-neutral-500 mt-0.5">140 Luminaires Total</div>
+        </div>
+
+        <div class="bg-[#121824] border border-neutral-800 rounded-xl p-4">
+          <div class="text-[11px] text-sky-400 font-bold uppercase">Dispatched Value</div>
+          <div class="text-xl font-extrabold text-sky-300 font-mono mt-1">₹4,85,000</div>
+          <div class="text-[10px] text-emerald-400 font-bold mt-0.5">✓ 100% Dispatched (5 Phases)</div>
+        </div>
+
+        <div class="bg-[#121824] border border-neutral-800 rounded-xl p-4">
+          <div class="text-[11px] text-emerald-400 font-bold uppercase">Total Payments Collected</div>
+          <div class="text-xl font-extrabold text-emerald-300 font-mono mt-1" id="sum-collected">₹4,10,000</div>
+          <div class="text-[10px] text-neutral-400 mt-0.5">84.5% Paid so far</div>
+        </div>
+
+        <div class="bg-[#121824] border border-amber-500/30 bg-amber-500/5 rounded-xl p-4">
+          <div class="text-[11px] text-amber-400 font-bold uppercase">Outstanding Balance Due</div>
+          <div class="text-xl font-extrabold text-amber-400 font-mono mt-1" id="sum-balance">₹75,000</div>
+          <div class="text-[10px] text-amber-300 font-semibold mt-0.5">Pending on Phase 5 Final Delivery</div>
+        </div>
+      </div>
+
+      <!-- Phase-by-Phase Breakdown Table -->
+      <div class="bg-[#121824] border border-neutral-800 rounded-2xl overflow-hidden shadow-xl">
+        <div class="p-4 bg-neutral-900/80 border-b border-neutral-800 flex items-center justify-between">
+          <div class="font-bold text-sm text-white">Phase Dispatches vs Payment Collection Log</div>
+          <span class="text-xs text-neutral-400 font-mono">Quotation #AL-3017-001</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-neutral-900/50 text-neutral-400 font-mono uppercase text-[10px] border-b border-neutral-800">
+              <tr>
+                <th class="p-3">Phase / Challan #</th>
+                <th class="p-3">Dispatch Date</th>
+                <th class="p-3">Units</th>
+                <th class="p-3">Material Value</th>
+                <th class="p-3">POD Receiver</th>
+                <th class="p-3">Payment Collected</th>
+                <th class="p-3">Mode</th>
+                <th class="p-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-neutral-800/60 font-medium">
+              <!-- Initial Advance -->
+              <tr class="bg-neutral-900/20 text-neutral-300">
+                <td class="p-3 font-bold text-sky-400">💰 Initial Booking Advance</td>
+                <td class="p-3 text-neutral-400">2026-10-25</td>
+                <td class="p-3 text-neutral-500">—</td>
+                <td class="p-3 text-neutral-400">—</td>
+                <td class="p-3 text-neutral-400">Advance Transfer</td>
+                <td class="p-3 font-mono font-bold text-emerald-400">₹2,00,000</td>
+                <td class="p-3"><span class="bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded text-[10px]">Bank NEFT</span></td>
+                <td class="p-3 text-right">
+                  <span class="text-[10px] font-mono text-neutral-500">RCP-ADV-1021</span>
+                </td>
+              </tr>
+
+              <!-- Phase 1 -->
+              <tr class="hover:bg-neutral-800/30 transition">
+                <td class="p-3">
+                  <div class="font-bold text-white font-mono">DC-202611-001</div>
+                  <div class="text-[10px] text-neutral-400">Phase 1: Ground Floor Recessed</div>
+                </td>
+                <td class="p-3 text-neutral-300">2026-11-01</td>
+                <td class="p-3 font-mono font-bold text-neutral-200">35 pcs</td>
+                <td class="p-3 font-mono text-neutral-300">₹1,15,000</td>
+                <td class="p-3 text-emerald-400">✍️ Mr. Jahingir</td>
+                <td class="p-3 font-mono font-bold text-emerald-400">₹50,000</td>
+                <td class="p-3"><span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[10px]">UPI GPay</span></td>
+                <td class="p-3 text-right">
+                  <button onclick="viewReceiptDemo('DC-202611-001', 'Phase 1 Delivery', 50000, 'UPI GPay', 'Mr. Jahingir')" class="px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-semibold cursor-pointer">
+                    Receipt ↗
+                  </button>
+                </td>
+              </tr>
+
+              <!-- Phase 2 -->
+              <tr class="hover:bg-neutral-800/30 transition">
+                <td class="p-3">
+                  <div class="font-bold text-white font-mono">DC-202611-002</div>
+                  <div class="text-[10px] text-neutral-400">Phase 2: First Floor Profiles &amp; Drivers</div>
+                </td>
+                <td class="p-3 text-neutral-300">2026-11-02</td>
+                <td class="p-3 font-mono font-bold text-neutral-200">30 pcs</td>
+                <td class="p-3 font-mono text-neutral-300">₹95,000</td>
+                <td class="p-3 text-emerald-400">✍️ Rajesh (Site Engr)</td>
+                <td class="p-3 font-mono font-bold text-emerald-400">₹60,000</td>
+                <td class="p-3"><span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[10px]">Cheque on Site</span></td>
+                <td class="p-3 text-right">
+                  <button onclick="viewReceiptDemo('DC-202611-002', 'Phase 2 Delivery', 60000, 'Cheque on Site', 'Rajesh (Site Engr)')" class="px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-semibold cursor-pointer">
+                    Receipt ↗
+                  </button>
+                </td>
+              </tr>
+
+              <!-- Phase 3 -->
+              <tr class="hover:bg-neutral-800/30 transition">
+                <td class="p-3">
+                  <div class="font-bold text-white font-mono">DC-202611-003</div>
+                  <div class="text-[10px] text-neutral-400">Phase 3: Decorative Chandeliers &amp; Wall Sconces</div>
+                </td>
+                <td class="p-3 text-neutral-300">2026-11-03</td>
+                <td class="p-3 font-mono font-bold text-neutral-200">25 pcs</td>
+                <td class="p-3 font-mono text-neutral-300">₹1,25,000</td>
+                <td class="p-3 text-emerald-400">✍️ Mr. Jahingir</td>
+                <td class="p-3 font-mono font-bold text-emerald-400">₹50,000</td>
+                <td class="p-3"><span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[10px]">UPI PhonePe</span></td>
+                <td class="p-3 text-right">
+                  <button onclick="viewReceiptDemo('DC-202611-003', 'Phase 3 Delivery', 50000, 'UPI PhonePe', 'Mr. Jahingir')" class="px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-semibold cursor-pointer">
+                    Receipt ↗
+                  </button>
+                </td>
+              </tr>
+
+              <!-- Phase 4 -->
+              <tr class="hover:bg-neutral-800/30 transition">
+                <td class="p-3">
+                  <div class="font-bold text-white font-mono">DC-202611-004</div>
+                  <div class="text-[10px] text-neutral-400">Phase 4: Landscape &amp; Terrace Bollards</div>
+                </td>
+                <td class="p-3 text-neutral-300">2026-11-04</td>
+                <td class="p-3 font-mono font-bold text-neutral-200">20 pcs</td>
+                <td class="p-3 font-mono text-neutral-300">₹75,000</td>
+                <td class="p-3 text-emerald-400">✍️ Vikram (Architect Rep)</td>
+                <td class="p-3 font-mono font-bold text-emerald-400">₹50,000</td>
+                <td class="p-3"><span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[10px]">Cash Handover</span></td>
+                <td class="p-3 text-right">
+                  <button onclick="viewReceiptDemo('DC-202611-004', 'Phase 4 Delivery', 50000, 'Cash Handover', 'Vikram (Architect Rep)')" class="px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-semibold cursor-pointer">
+                    Receipt ↗
+                  </button>
+                </td>
+              </tr>
+
+              <!-- Phase 5 (ACTIVE - AWAITING POD & PAYMENT) -->
+              <tr class="bg-amber-500/10 border-l-4 border-amber-500">
+                <td class="p-3">
+                  <div class="flex items-center gap-1.5">
+                    <span class="font-bold text-white font-mono">DC-202611-005</span>
+                    <span class="text-[9px] bg-amber-500 text-black font-extrabold px-1.5 py-0.5 rounded">IN-TRANSIT</span>
+                  </div>
+                  <div class="text-[10px] text-amber-200">Phase 5: Final Balcony Pendants &amp; Accessories</div>
+                </td>
+                <td class="p-3 text-neutral-300">Today (2026-11-06)</td>
+                <td class="p-3 font-mono font-bold text-neutral-200">30 pcs</td>
+                <td class="p-3 font-mono text-neutral-300">₹75,000</td>
+                <td class="p-3 text-amber-400 italic">Pending Delivery Signature...</td>
+                <td class="p-3 font-mono font-bold text-amber-300">Pending ₹75,000</td>
+                <td class="p-3"><span class="bg-neutral-800 text-neutral-400 px-2 py-0.5 rounded text-[10px]">Due at Site</span></td>
+                <td class="p-3 text-right">
+                  <button onclick="switchTab('pod')" class="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] shadow-sm cursor-pointer animate-pulse">
+                    ✍️ Sign &amp; Collect ₹
+                  </button>
+                </td>
+              </tr>
+
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: On-Site POD & Payment Simulator -->
+    <div id="tab-pod" class="hidden space-y-5">
+      <div class="bg-[#121824] border border-purple-500/30 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-5">
+        <div class="flex items-center justify-between pb-3 border-b border-neutral-800">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xl">✍️</span>
+              <h2 class="text-base sm:text-lg font-extrabold text-white">
+                Live On-Site Delivery Handover (POD + Payment Collection)
+              </h2>
+            </div>
+            <div class="text-xs text-neutral-400 mt-0.5">
+              Simulating Phase 5 delivery handover at Jubilee Hills site. Driver or field executive opens this on tablet/phone.
+            </div>
+          </div>
+          <span class="font-mono text-xs font-bold bg-neutral-900 border border-neutral-700 px-2.5 py-1 rounded text-purple-300">
+            DC-202611-005
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Left: Signature Canvas -->
+          <div class="space-y-3">
+            <div class="text-xs font-bold text-neutral-300 flex items-center justify-between">
+              <span>1. Client / Site Supervisor Touch Signature:</span>
+              <button onclick="clearCanvas()" class="text-[11px] text-rose-400 hover:text-rose-300 font-bold cursor-pointer">
+                Clear ↺
+              </button>
+            </div>
+
+            <div class="rounded-xl overflow-hidden border-2 border-dashed border-neutral-600 bg-white relative">
+              <canvas id="pod-canvas" width="460" height="160" class="w-full h-40 bg-white cursor-crosshair touch-none"></canvas>
+              <div id="sig-hint" class="absolute inset-0 pointer-events-none flex items-center justify-center text-neutral-400 text-xs italic">
+                Draw signature here with finger or mouse...
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-[11px] text-neutral-400 block font-semibold mb-1">Receiver Name *</label>
+                <input id="pod-name" type="text" value="Mr. Jahingir (Client)" class="w-full bg-[#1c2433] border border-neutral-700 rounded-lg p-2 text-xs text-white font-medium focus:outline-none focus:border-purple-400">
+              </div>
+              <div>
+                <label class="text-[11px] text-neutral-400 block font-semibold mb-1">Phone Number</label>
+                <input id="pod-phone" type="text" value="+91 98490 11223" class="w-full bg-[#1c2433] border border-neutral-700 rounded-lg p-2 text-xs text-white font-mono focus:outline-none focus:border-purple-400">
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Payment Collection & Dynamic UPI QR -->
+          <div class="bg-neutral-900/70 border border-neutral-800 rounded-xl p-4 space-y-4">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-amber-300 uppercase tracking-wide">2. On-Site Balance Payment</span>
+              <span class="text-xs font-mono font-bold text-white">Remaining Balance: ₹75,000</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-[11px] text-neutral-400 block mb-1">Amount Collecting (₹)</label>
+                <input id="collect-amt" type="number" value="75000" oninput="updateQrAmount(this.value)" class="w-full bg-[#1c2433] border border-amber-500/40 rounded-lg p-2 text-sm font-bold font-mono text-amber-300 focus:outline-none">
+              </div>
+              <div>
+                <label class="text-[11px] text-neutral-400 block mb-1">Payment Mode</label>
+                <select id="collect-mode" class="w-full bg-[#1c2433] border border-neutral-700 rounded-lg p-2 text-xs text-white font-medium focus:outline-none">
+                  <option value="UPI / QR Code Scan">Instant UPI QR Scan</option>
+                  <option value="Cash Handover">Cash Handover</option>
+                  <option value="Cheque on Site">Cheque on Site</option>
+                  <option value="NEFT / Bank Transfer">NEFT / Bank Transfer</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Dynamic UPI QR Box -->
+            <div class="bg-[#121824] border border-neutral-800 rounded-xl p-3 flex items-center gap-4">
+              <div class="w-24 h-24 bg-white p-1 rounded-lg shrink-0 flex items-center justify-center">
+                <!-- Visual simulated QR Code -->
+                <svg viewBox="0 0 100 100" class="w-full h-full">
+                  <rect x="0" y="0" width="100" height="100" fill="white" />
+                  <rect x="10" y="10" width="25" height="25" fill="#121824" />
+                  <rect x="15" y="15" width="15" height="15" fill="white" />
+                  <rect x="65" y="10" width="25" height="25" fill="#121824" />
+                  <rect x="70" y="15" width="15" height="15" fill="white" />
+                  <rect x="10" y="65" width="25" height="25" fill="#121824" />
+                  <rect x="15" y="70" width="15" height="15" fill="white" />
+                  <rect x="40" y="20" width="10" height="20" fill="#121824" />
+                  <rect x="55" y="35" width="15" height="10" fill="#121824" />
+                  <rect x="40" y="65" width="20" height="10" fill="#121824" />
+                  <rect x="70" y="55" width="10" height="25" fill="#121824" />
+                  <circle cx="50" cy="50" r="5" fill="#df9c20" />
+                </svg>
+              </div>
+              <div class="space-y-1">
+                <div class="text-[11px] font-bold text-white flex items-center gap-1">
+                  <span>📱 Scan via GPay / PhonePe / Paytm</span>
+                </div>
+                <div class="text-[10px] text-neutral-400">UPI ID: <strong class="text-neutral-200 font-mono">artelume.lighting@icici</strong></div>
+                <div class="text-[11px] font-mono font-bold text-emerald-400">Amount: ₹<span id="qr-amt-label">75,000</span></div>
+                <div class="text-[9px] text-neutral-500">Auto-tags reference: DC-202611-005</div>
+              </div>
+            </div>
+
+            <!-- Complete Handover Button -->
+            <button onclick="simulateCompletePOD()" class="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2 cursor-pointer transition active:scale-[0.99]">
+              <span>✓ Confirm Delivery &amp; Record ₹75,000 Payment</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: Official Delivery Receipt -->
+    <div id="tab-receipt" class="hidden space-y-4">
+      <div class="bg-white text-neutral-900 rounded-2xl p-6 sm:p-8 max-w-2xl mx-auto shadow-2xl border border-neutral-300 space-y-6">
+        
+        <!-- Receipt Header -->
+        <div class="flex items-start justify-between border-b border-neutral-200 pb-4">
+          <div>
+            <div class="text-xl font-extrabold text-neutral-900 tracking-tight flex items-center gap-2">
+              <span>ARTELUME</span>
+              <span class="text-[10px] font-mono bg-neutral-900 text-white px-2 py-0.5 rounded uppercase tracking-wider font-semibold">
+                Official Receipt
+              </span>
+            </div>
+            <div class="text-[11px] text-neutral-500 mt-1">
+              Architectural Lighting &amp; Automation Systems
+            </div>
+          </div>
+          <div class="text-right font-mono text-xs">
+            <div class="font-extrabold text-neutral-900" id="rec-number">RCP-POD-3017</div>
+            <div class="text-neutral-500 text-[11px]" id="rec-date">06 Nov 2026</div>
+          </div>
+        </div>
+
+        <!-- Receipt Metadata -->
+        <div class="grid grid-cols-2 gap-4 text-xs">
+          <div>
+            <div class="text-[10px] text-neutral-400 uppercase font-bold">Received From</div>
+            <div class="font-bold text-neutral-900 mt-0.5" id="rec-client">Mr. Jahingir</div>
+            <div class="text-neutral-600 text-[11px]">Jubilee Hills Villa Project, Hyd</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-neutral-400 uppercase font-bold">Against Delivery Challan</div>
+            <div class="font-mono font-bold text-neutral-900 mt-0.5" id="rec-dc">DC-202611-005 (Phase 5)</div>
+            <div class="text-neutral-600 text-[11px]">Quotation Ref: #AL-3017-001</div>
+          </div>
+        </div>
+
+        <!-- Amount Box -->
+        <div class="bg-neutral-50 border border-neutral-200 rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <div class="text-[10px] text-neutral-500 uppercase font-bold tracking-wider">Amount Received on Site</div>
+            <div class="text-2xl font-black text-emerald-700 font-mono mt-0.5" id="rec-amount">₹75,000.00</div>
+            <div class="text-[11px] text-neutral-600 italic mt-0.5" id="rec-words">Rupees Seventy Five Thousand Only</div>
+          </div>
+          <div class="text-right">
+            <span class="px-2.5 py-1 rounded bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-300" id="rec-mode">
+              ✓ UPI Received
+            </span>
+          </div>
+        </div>
+
+        <!-- Financial Balance Summary -->
+        <div class="border-t border-b border-neutral-200 py-3 grid grid-cols-3 gap-2 text-center text-xs">
+          <div>
+            <div class="text-[10px] text-neutral-400 uppercase font-bold">Total Quote</div>
+            <div class="font-mono font-bold text-neutral-800">₹4,85,000</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-neutral-400 uppercase font-bold">Total Paid</div>
+            <div class="font-mono font-bold text-emerald-700" id="rec-total-paid">₹4,85,000</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-neutral-400 uppercase font-bold">Balance Remaining</div>
+            <div class="font-mono font-bold text-neutral-900" id="rec-balance-left">₹0 (Fully Settled)</div>
+          </div>
+        </div>
+
+        <!-- Signatures Footer -->
+        <div class="pt-4 flex items-end justify-between text-xs">
+          <div>
+            <div class="w-32 h-10 border-b border-neutral-400 flex items-center justify-center italic text-neutral-700 font-serif text-sm" id="rec-sig">
+              Jahingir M.
+            </div>
+            <div class="text-[10px] text-neutral-500 font-bold mt-1">Client / Site Signature</div>
+          </div>
+          <div class="text-right">
+            <div class="w-32 h-10 border-b border-neutral-400 flex items-center justify-center font-mono text-xs font-bold text-neutral-800">
+              ARTELUME DISPATCH
+            </div>
+            <div class="text-[10px] text-neutral-500 font-bold mt-1">Authorised Signatory</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Tab switching logic
+    function switchTab(tab) {
+      document.getElementById('tab-matrix').classList.add('hidden');
+      document.getElementById('tab-pod').classList.add('hidden');
+      document.getElementById('tab-receipt').classList.add('hidden');
+
+      document.getElementById('tab-btn-matrix').className = "px-4 py-2 rounded-xl text-xs font-bold bg-neutral-800 text-neutral-300 hover:text-white transition cursor-pointer";
+      document.getElementById('tab-btn-pod').className = "px-4 py-2 rounded-xl text-xs font-bold bg-neutral-800 text-neutral-300 hover:text-white transition cursor-pointer";
+      document.getElementById('tab-btn-receipt').className = "px-4 py-2 rounded-xl text-xs font-bold bg-neutral-800 text-neutral-300 hover:text-white transition cursor-pointer";
+
+      document.getElementById('tab-' + tab).classList.remove('hidden');
+      document.getElementById('tab-btn-' + tab).className = "px-4 py-2 rounded-xl text-xs font-bold bg-[#df9c20] text-black shadow-md transition cursor-pointer";
+    }
+
+    // Dynamic QR Amount update
+    function updateQrAmount(val) {
+      const num = parseInt(val) || 0;
+      document.getElementById('qr-amt-label').innerText = num.toLocaleString('en-IN');
+    }
+
+    // Interactive Canvas Signature
+    const canvas = document.getElementById('pod-canvas');
+    const ctx = canvas.getContext('2d');
+    let isDrawing = false;
+    let hasSig = false;
+
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+
+    function startDraw(e) {
+      isDrawing = true;
+      document.getElementById('sig-hint').style.display = 'none';
+      hasSig = true;
+      ctx.beginPath();
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
+      const y = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
+      ctx.moveTo(x, y);
+    }
+
+    function draw(e) {
+      if (!isDrawing) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
+      const y = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
+
+    function stopDraw() {
+      isDrawing = false;
+    }
+
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      document.getElementById('sig-hint').style.display = 'flex';
+      hasSig = false;
+    }
+
+    canvas.addEventListener('mousedown', startDraw);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDraw);
+    canvas.addEventListener('mouseleave', stopDraw);
+
+    canvas.addEventListener('touchstart', startDraw);
+    canvas.addEventListener('touchmove', draw);
+    canvas.addEventListener('touchend', stopDraw);
+
+    // Complete POD simulation
+    function simulateCompletePOD() {
+      const amt = parseInt(document.getElementById('collect-amt').value) || 0;
+      const mode = document.getElementById('collect-mode').value;
+      const name = document.getElementById('pod-name').value || 'Mr. Jahingir';
+
+      // Update Summary Numbers
+      document.getElementById('sum-collected').innerText = '₹4,85,000';
+      document.getElementById('sum-balance').innerText = '₹0 (Fully Paid)';
+
+      // Update Receipt view
+      document.getElementById('rec-amount').innerText = '₹' + amt.toLocaleString('en-IN') + '.00';
+      document.getElementById('rec-mode').innerText = '✓ ' + mode;
+      document.getElementById('rec-client').innerText = name;
+      document.getElementById('rec-sig').innerText = name;
+      document.getElementById('rec-total-paid').innerText = '₹4,85,000';
+      document.getElementById('rec-balance-left').innerText = '₹0 (Fully Settled)';
+
+      alert('✓ Delivery Confirmed!\n• Proof of Delivery (POD) signed by ' + name + '\n• ₹' + amt.toLocaleString('en-IN') + ' received via ' + mode + '\n• Quotation Balance updated to ₹0.\n• Official Receipt RCP-POD-3017 generated!');
+      switchTab('receipt');
+    }
+
+    function viewReceiptDemo(dcNum, phase, amt, mode, name) {
+      document.getElementById('rec-dc').innerText = dcNum + ' (' + phase + ')';
+      document.getElementById('rec-amount').innerText = '₹' + amt.toLocaleString('en-IN') + '.00';
+      document.getElementById('rec-mode').innerText = '✓ ' + mode;
+      document.getElementById('rec-client').innerText = name;
+      document.getElementById('rec-sig').innerText = name;
+      switchTab('receipt');
+    }
+  </script>
+</body>
+</html>

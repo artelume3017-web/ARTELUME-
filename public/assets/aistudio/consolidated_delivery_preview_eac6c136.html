@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Master Delivery Matrix & Grouped Challans Preview — Quotation Craft</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+</head>
+<body class="bg-[#0f141a] text-slate-100 antialiased p-4 sm:p-6 font-sans">
+  <div class="max-w-6xl mx-auto space-y-6">
+
+    <!-- Top Header -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-[#17202b] via-[#1a2330] to-[#121922] border border-sky-500/30 shadow-xl">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="px-2.5 py-0.5 rounded-full text-xs font-black tracking-wider uppercase bg-sky-500 text-white">
+            Smart Solution Preview
+          </span>
+          <span class="text-xs text-sky-300 font-mono font-bold">Quotation Craft Logistics</span>
+        </div>
+        <h1 class="text-xl sm:text-2xl font-black text-white mt-1.5 flex items-center gap-2">
+          <span>📦</span> Consolidated Delivery Matrix &amp; Project Grouping
+        </h1>
+        <p class="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl">
+          Solves the multi-challan clutter! Group all 5 delivery phases under one clean project dashboard, with an instant <strong>Cumulative Material Matrix</strong> showing what was sent and what remains.
+        </p>
+      </div>
+
+      <!-- Mode Switcher -->
+      <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-700 text-xs font-bold shrink-0">
+        <button id="btn-grouped" onclick="setMode('grouped')" class="px-3.5 py-1.5 rounded-lg bg-sky-600 text-white shadow transition-all">
+          📑 Grouped by Project (Recommended)
+        </button>
+        <button id="btn-matrix" onclick="setMode('matrix')" class="px-3.5 py-1.5 rounded-lg text-slate-300 hover:text-white transition-all">
+          📊 Cumulative Item Matrix
+        </button>
+        <button id="btn-flat" onclick="setMode('flat')" class="px-3.5 py-1.5 rounded-lg text-slate-300 hover:text-white transition-all">
+          📋 Old Flat List
+        </button>
+      </div>
+    </div>
+
+    <!-- VIEW 1: GROUPED BY PROJECT (THE HERO SOLUTION) -->
+    <div id="view-grouped" class="space-y-4">
+      
+      <!-- Project Master Card: Mr. Jahingir -->
+      <div class="bg-[#151c24] border border-slate-800 hover:border-sky-500/40 rounded-2xl p-5 shadow-2xl transition-all space-y-4">
+        
+        <!-- Project Summary Header -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+          <div>
+            <div class="flex items-center gap-2.5 flex-wrap">
+              <span class="font-mono text-sm font-extrabold text-sky-400 bg-sky-950/60 border border-sky-500/30 px-2.5 py-0.5 rounded-lg">
+                #AL-3017-001
+              </span>
+              <h2 class="text-lg font-black text-white">Mr. jahingir — Architectural Lighting Supply</h2>
+              <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                <span>✓</span> 5 Dispatches Complete
+              </span>
+            </div>
+            <div class="text-xs text-slate-400 mt-1 flex items-center gap-3 flex-wrap">
+              <span>📍 Site: <strong>Plot 12, Jubilee Hills, Hyderabad</strong></span>
+              <span>•</span>
+              <span>👤 Contact: <strong>Mr. jahingir (+91 98490 22110)</strong></span>
+              <span>•</span>
+              <span>🏛️ Studio Lead: <strong>Vikram Sharma</strong></span>
+            </div>
+          </div>
+
+          <!-- Quick Action Buttons -->
+          <div class="flex items-center gap-2 shrink-0">
+            <button onclick="setMode('matrix')" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-lg transition shadow flex items-center gap-1.5">
+              <span>📊</span>
+              <span>View Full Item Matrix</span>
+            </button>
+            <button onclick="alert('Printing 1-page Consolidated Project Delivery Statement summarizing all 5 batches!')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs rounded-lg transition flex items-center gap-1.5">
+              <span>📄</span>
+              <span>Master Statement</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Overall Progress Meter -->
+        <div class="bg-[#10161d] p-3.5 rounded-xl border border-slate-800/80 space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-slate-300 flex items-center gap-2">
+              <span>🚚 Total Material Dispatched:</span>
+              <strong class="text-white text-sm">80 of 80 Units (100% Complete)</strong>
+            </span>
+            <span class="font-mono text-xs font-bold text-emerald-400">0 Units Pending</span>
+          </div>
+          <div class="w-full h-3 rounded-full bg-slate-800 overflow-hidden flex">
+            <div style="width: 100%;" class="bg-gradient-to-r from-sky-500 to-emerald-500 rounded-full h-full shadow-inner"></div>
+          </div>
+        </div>
+
+        <!-- Dispatches Timeline Accordion -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
+            <span>Dispatched Batches (5 Phases)</span>
+            <span class="text-slate-500 text-[11px] font-normal">Click any batch to expand / collapse details</span>
+          </div>
+
+          <!-- Batch 5 -->
+          <div class="border border-slate-800 rounded-xl bg-[#121820] overflow-hidden">
+            <div class="p-3 flex items-center justify-between gap-3 cursor-pointer hover:bg-slate-800/40 transition" onclick="toggleDetails('b5')">
+              <div class="flex items-center gap-3 min-w-0">
+                <span class="font-mono font-bold text-xs text-sky-400 bg-sky-950/40 px-2 py-0.5 rounded border border-sky-800/40">
+                  DC-2026-005
+                </span>
+                <span class="font-bold text-xs text-white truncate">Phase 5: Final Fixtures &amp; Balance</span>
+                <span class="text-[11px] text-slate-400">📅 06 Nov 2026</span>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <span class="font-mono text-xs font-extrabold text-white bg-slate-800 px-2.5 py-1 rounded-md">
+                  5 Units
+                </span>
+                <button 
+                  onclick="event.stopPropagation(); alert('📄 Downloading PDF Delivery Challan for Phase 5 (#DC-2026-005)...');"
+                  class="px-2.5 py-1 bg-red-600/80 hover:bg-red-600 text-white font-bold text-[11px] rounded-lg transition flex items-center gap-1 shadow"
+                  title="Download Phase 5 PDF"
+                >
+                  <span>📄</span>
+                  <span>Download PDF</span>
+                </button>
+                <button 
+                  onclick="event.stopPropagation(); openDemoSlip('DC-2026-005', 'Phase 5: Final Fixtures & Balance', 5);"
+                  class="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-white font-bold text-[11px] rounded-lg transition flex items-center gap-1"
+                  title="View A4 Slip"
+                >
+                  <span>🖨️</span>
+                  <span>View Slip</span>
+                </button>
+                <span class="text-slate-400 text-xs ml-1">▼</span>
+              </div>
+            </div>
+            <div id="b5" class="p-3.5 bg-[#0e1319] border-t border-slate-800 text-xs space-y-2.5">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-slate-400">
+                <div>🚚 Vehicle: <strong class="text-slate-200">TS 09 UA 8842</strong></div>
+                <div>👤 Driver: <strong class="text-slate-200">Designated Driver</strong></div>
+                <div>✍️ Sign-off: <strong class="text-emerald-400">Mr. jahingir (✓ Signed)</strong></div>
+              </div>
+              <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between flex-wrap gap-2">
+                <div class="text-slate-300">
+                  <strong>Dispatched in this Phase:</strong>
+                  <span class="font-mono text-slate-200"> 24V/400 DRIVER (5 Units)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button 
+                    onclick="alert('📄 Downloading Official PDF Delivery Challan for Phase 5...');" 
+                    class="px-3 py-1 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-lg flex items-center gap-1 shadow"
+                  >
+                    <span>📄</span>
+                    <span>Download Phase 5 PDF</span>
+                  </button>
+                  <button 
+                    onclick="openDemoSlip('DC-2026-005', 'Phase 5: Final Fixtures & Balance', 5);" 
+                    class="px-3 py-1 bg-[#df9c20] text-black font-bold text-xs rounded-lg hover:bg-[#c98918] flex items-center gap-1"
+                  >
+                    <span>🖨️</span>
+                    <span>Print Slip</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Batch 4 -->
+          <div class="border border-slate-800 rounded-xl bg-[#121820] overflow-hidden">
+            <div class="p-3 flex items-center justify-between gap-3 cursor-pointer hover:bg-slate-800/40 transition" onclick="toggleDetails('b4')">
+              <div class="flex items-center gap-3 min-w-0">
+                <span class="font-mono font-bold text-xs text-sky-400 bg-sky-950/40 px-2 py-0.5 rounded border border-sky-800/40">
+                  DC-2026-004
+                </span>
+                <span class="font-bold text-xs text-white truncate">Phase 4: Drivers &amp; Power Units</span>
+                <span class="text-[11px] text-slate-400">📅 06 Nov 2026</span>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <span class="font-mono text-xs font-extrabold text-white bg-slate-800 px-2.5 py-1 rounded-md">
+                  15 Units
+                </span>
+                <button 
+                  onclick="event.stopPropagation(); alert('📄 Downloading PDF Delivery Challan for Phase 4 (#DC-2026-004)...');"
+                  class="px-2.5 py-1 bg-red-600/80 hover:bg-red-600 text-white font-bold text-[11px] rounded-lg transition flex items-center gap-1 shadow"
+                >
+                  <span>📄</span>
+                  <span>Download PDF</span>
+                </button>
+                <button 
+                  onclick="event.stopPropagation(); openDemoSlip('DC-2026-004', 'Phase 4: Drivers & Power Units', 15);"
+                  class="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-white font-bold text-[11px] rounded-lg transition flex items-center gap-1"
+                >
+                  <span>🖨️</span>
+                  <span>View Slip</span>
+                </button>
+                <span class="text-slate-400 text-xs ml-1">▼</span>
+              </div>
+            </div>
+            <div id="b4" class="hidden p-3.5 bg-[#0e1319] border-t border-slate-800 text-xs space-y-2.5">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-slate-400">
+                <div>🚚 Vehicle: <strong class="text-slate-200">TS 09 UA 8842</strong></div>
+                <div>👤 Driver: <strong class="text-slate-200">Designated Driver</strong></div>
+                <div>✍️ Sign-off: <strong class="text-emerald-400">Mr. jahingir (✓ Signed)</strong></div>
+              </div>
+              <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between flex-wrap gap-2">
+                <div class="text-slate-300">
+                  <strong>Dispatched in this Phase:</strong>
+                  <span class="font-mono text-slate-200"> 24V/240 LED STRIP (15 Units)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button 
+                    onclick="alert('📄 Downloading Official PDF Delivery Challan for Phase 4...');" 
+                    class="px-3 py-1 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-lg flex items-center gap-1 shadow"
+                  >
+                    <span>📄</span>
+                    <span>Download Phase 4 PDF</span>
+                  </button>
+                  <button 
+                    onclick="openDemoSlip('DC-2026-004', 'Phase 4: Drivers & Power Units', 15);" 
+                    class="px-3 py-1 bg-[#df9c20] text-black font-bold text-xs rounded-lg hover:bg-[#c98918] flex items-center gap-1"
+                  >
+                    <span>🖨️</span>
+                    <span>Print Slip</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Batch 3 -->
+          <div class="border border-slate-800 rounded-xl bg-[#121820] overflow-hidden">
+            <div class="p-3 flex items-center justify-between gap-3 cursor-pointer hover:bg-slate-800/40 transition" onclick="toggleDetails('b3')">
+              <div class="flex items-center gap-3 min-w-0">
+                <span class="font-mono font-bold text-xs text-sky-400 bg-sky-950/40 px-2 py-0.5 rounded border border-sky-800/40">
+                  DC-2026-003
+                </span>
+                <span class="font-bold text-xs text-white truncate">Phase 3: Outdoor &amp; Landscape Fixtures</span>
+                <span class="text-[11px] text-slate-400">📅 06 Nov 2026</span>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <span class="font-mono text-xs font-extrabold text-white bg-slate-800 px-2.5 py-1 rounded-md">
+                  25 Units
+                </span>
+                <button 
+                  onclick="event.stopPropagation(); alert('📄 Downloading PDF Delivery Challan for Phase 3 (#DC-2026-003)...');"
+                  class="px-2.5 py-1 bg-red-600/80 hover:bg-red-600 text-white font-bold text-[11px] rounded-lg transition flex items-center gap-1 shadow"
+                >
+                  <span>📄</span>
+                  <span>Download PDF</span>
+                </button>
+                <button 
+                  onclick="openDemoSlip('DC-2026-003', 'Phase 3: Outdoor & Landscape Fixtures', 25);"
+                  class="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-white font-bold text-[11px] rounded-lg transition flex items-center gap-1"
+                >
+                  <span>🖨️</span>
+                  <span>View Slip</span>
+                </button>
+                <span class="text-slate-400 text-xs ml-1">▼</span>
+              </div>
+            </div>
+            <div id="b3" class="hidden p-3.5 bg-[#0e1319] border-t border-slate-800 text-xs space-y-2.5">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-slate-400">
+                <div>🚚 Vehicle: <strong class="text-slate-200">TS 09 UA 8842</strong></div>
+                <div>👤 Driver: <strong class="text-slate-200">Designated Driver</strong></div>
+                <div>✍️ Sign-off: <strong class="text-emerald-400">Mr. jahingir (✓ Signed)</strong></div>
+              </div>
+              <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between flex-wrap gap-2">
+                <div class="text-slate-300">
+                  <strong>Dispatched in this Phase:</strong>
+                  <span class="font-mono text-slate-200"> 17MM SURFACE PROFILE (25 Units)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button 
+                    onclick="alert('📄 Downloading Official PDF Delivery Challan for Phase 3...');" 
+                    class="px-3 py-1 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-lg flex items-center gap-1 shadow"
+                  >
+                    <span>📄</span>
+                    <span>Download Phase 3 PDF</span>
+                  </button>
+                  <button 
+                    onclick="openDemoSlip('DC-2026-003', 'Phase 3: Outdoor & Landscape Fixtures', 25);" 
+                    class="px-3 py-1 bg-[#df9c20] text-black font-bold text-xs rounded-lg hover:bg-[#c98918] flex items-center gap-1"
+                  >
+                    <span>🖨️</span>
+                    <span>Print Slip</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Batch 2 & 1 Collapsed summary -->
+          <div class="text-center py-1">
+            <span class="text-slate-500 text-xs italic">+ 2 older phases (Phase 1 &amp; Phase 2: 35 Units total)</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- VIEW 2: CUMULATIVE ITEM MATRIX (ALL DISPATCHES IN 1 TABLE) -->
+    <div id="view-matrix" class="hidden space-y-4">
+      <div class="bg-[#151c24] border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div>
+            <h2 class="text-lg font-black text-white flex items-center gap-2">
+              <span>📊</span> Cumulative Project Delivery Matrix
+            </h2>
+            <p class="text-xs text-slate-400">
+              One master view showing every ordered fixture and exactly how many units were dispatched across all 5 challans.
+            </p>
+          </div>
+          <button onclick="window.print()" class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition shadow flex items-center gap-1.5 shrink-0">
+            <span>🖨️</span>
+            <span>Print Master Delivery Matrix</span>
+          </button>
+        </div>
+
+        <!-- Matrix Table -->
+        <div class="overflow-x-auto rounded-xl border border-slate-800">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-[#10161d] text-slate-400 uppercase font-bold text-[10px] tracking-wider border-b border-slate-800">
+              <tr>
+                <th class="p-3">S.No</th>
+                <th class="p-3">SKU / Code</th>
+                <th class="p-3">Fixture Description</th>
+                <th class="p-3 text-center">Ordered</th>
+                <th class="p-3 text-center text-sky-400">DC-001</th>
+                <th class="p-3 text-center text-sky-400">DC-002</th>
+                <th class="p-3 text-center text-sky-400">DC-003</th>
+                <th class="p-3 text-center text-sky-400">DC-004</th>
+                <th class="p-3 text-center text-sky-400">DC-005</th>
+                <th class="p-3 text-center bg-slate-800 text-white">Delivered</th>
+                <th class="p-3 text-center">Pending</th>
+                <th class="p-3 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-slate-200">
+              <tr class="hover:bg-slate-800/30 transition">
+                <td class="p-3 font-mono">1</td>
+                <td class="p-3 font-mono font-bold text-white">LFSL1211R-Z</td>
+                <td class="p-3">
+                  <div class="font-bold text-white">COBLIGHT ZIGBEE TUNABLE</div>
+                  <div class="text-[10px] text-slate-400">7W • CCT • MATT WHITE</div>
+                </td>
+                <td class="p-3 text-center font-bold">20</td>
+                <td class="p-3 text-center font-mono">10</td>
+                <td class="p-3 text-center font-mono">10</td>
+                <td class="p-3 text-center text-slate-600">-</td>
+                <td class="p-3 text-center text-slate-600">-</td>
+                <td class="p-3 text-center text-slate-600">-</td>
+                <td class="p-3 text-center font-black text-white bg-slate-800/80">20</td>
+                <td class="p-3 text-center font-bold text-emerald-400">0</td>
+                <td class="p-3 text-center">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    Complete
+                  </span>
+                </td>
+              </tr>
+              <tr class="hover:bg-slate-800/30 transition">
+                <td class="p-3 font-mono">2</td>
+                <td class="p-3 font-mono font-bold text-white">17MM</td>
+                <td class="p-3">
+                  <div class="font-bold text-white">17MM SURFACE PROFILE</div>
+                  <div class="text-[10px] text-slate-400">CCT • Anodized Aluminum</div>
+                </td>
+                <td class="p-3 text-center font-bold">25</td>
+                <td class="p-3 text-center text-slate-600">-</td>
+                <td class="p-3 text-center text-slate-600">-</td>
+                <td class="p-3 text-center font-mono">25</td>
+                <td class="p-3 text-center text-slate-600">-</td>
+                <td class="p-3 text-center text-slate-600">-</td>
+                <td class="p-3 text-center font-black text-white bg-slate-800/80">25</td>
+                <td class="p-3 text-center font-bold text-emerald-400">0</td>
+                <td class="p-3 text-center">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    Complete
+                  </span>
+                </td>
+              </tr>
+              <tr class="hover:bg-slate-800/30 transition">
+                <td class="p-3 font-mono">3</td>
+                <td class="p-3 font-mono font-bold text-white">24V/240 LED</td>
+                <td class="p-3">
+                  <div class="font-bold text-white">24V/240 LED STRIP</div>
+                  <div class="text-[10px] text-slate-400">24W/m • CCT Architectural Grade</div>
+                </td>
+                <td class="p-3 text-center font-bold">20</td>
+                <td class="p-3 text-center font-mono">5</td>
+                <td class="p-3 text-center text-slate-600">-</td>
+                <td class="p-3 text-center text-slate-600">-</td>
+                <td class="p-3 text-center font-mono">15</td>
+                <td class="p-3 text-center text-slate-600">-</td>
+                <td class="p-3 text-center font-black text-white bg-slate-800/80">20</td>
+                <td class="p-3 text-center font-bold text-emerald-400">0</td>
+                <td class="p-3 text-center">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    Complete
+                  </span>
+                </td>
+              </tr>
+              <tr class="hover:bg-slate-800/30 transition">
+                <td class="p-3 font-mono">4</td>
+                <td class="p-3 font-mono font-bold text-white">LFPS40024I</td>
+                <td class="p-3">
+                  <div class="font-bold text-white">24V/400 DRIVER</div>
+                  <div class="text-[10px] text-slate-400">400W • Industrial Power Unit</div>
+                </td>
+                <td class="p-3 text-center font-bold">15</td>
+                <td class="p-3 text-center text-slate-600">-</td>
+                <td class="p-3 text-center font-mono">10</td>
+                <td class="p-3 text-center text-slate-600">-</td>
+                <td class="p-3 text-center text-slate-600">-</td>
+                <td class="p-3 text-center font-mono">5</td>
+                <td class="p-3 text-center font-black text-white bg-slate-800/80">15</td>
+                <td class="p-3 text-center font-bold text-emerald-400">0</td>
+                <td class="p-3 text-center">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    Complete
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+            <tfoot class="bg-[#10161d] font-bold text-white border-t-2 border-slate-700">
+              <tr>
+                <td colspan="3" class="p-3 text-right text-slate-300">TOTAL UNITS:</td>
+                <td class="p-3 text-center font-black">80</td>
+                <td class="p-3 text-center text-sky-400 font-mono">15</td>
+                <td class="p-3 text-center text-sky-400 font-mono">20</td>
+                <td class="p-3 text-center text-sky-400 font-mono">25</td>
+                <td class="p-3 text-center text-sky-400 font-mono">15</td>
+                <td class="p-3 text-center text-sky-400 font-mono">5</td>
+                <td class="p-3 text-center text-emerald-400 bg-slate-800 font-black">80 Delivered</td>
+                <td class="p-3 text-center text-emerald-400 font-black">0 (Nil)</td>
+                <td class="p-3 text-center text-emerald-300">100% Complete</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 3: OLD FLAT LIST (FOR COMPARISON) -->
+    <div id="view-flat" class="hidden space-y-3">
+      <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+        ⚠️ <strong>Current Old Way:</strong> Shows every batch as a separate large card on the page. As you noticed, having 5–10 cards for the same project makes the screen long and difficult to follow.
+      </div>
+      <div class="text-xs text-slate-400">
+        Switch to <strong>"📑 Grouped by Project"</strong> or <strong>"📊 Cumulative Item Matrix"</strong> above to see the new streamlined architecture!
+      </div>
+    </div>
+
+    <!-- DEMO SLIP MODAL -->
+    <div id="slip-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div class="bg-[#161a20] border border-white/20 rounded-2xl w-full max-w-3xl p-5 text-white shadow-2xl space-y-4 my-auto max-h-[92vh] flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="text-xs uppercase font-extrabold tracking-wider bg-sky-500/20 text-sky-400 px-2.5 py-0.5 rounded border border-sky-500/30">
+              Phase Delivery Slip
+            </span>
+            <span id="modal-dc-num" class="text-xs text-white font-mono font-bold">DC-2026-005</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button 
+              onclick="alert('📄 PDF Delivery Challan file downloaded successfully to your device!');"
+              class="px-3 py-1.5 rounded-lg text-xs font-bold bg-red-600 hover:bg-red-500 text-white transition flex items-center gap-1 shadow cursor-pointer"
+            >
+              <span>📄</span>
+              <span>Save / Download PDF</span>
+            </button>
+            <button 
+              onclick="window.print()"
+              class="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#df9c20] text-black hover:bg-[#c98918] transition flex items-center gap-1 shadow cursor-pointer"
+            >
+              <span>🖨️</span>
+              <span>Print</span>
+            </button>
+            <button 
+              onclick="closeDemoSlip()"
+              class="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white/50 hover:text-white flex items-center justify-center text-xs cursor-pointer ml-2"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white text-slate-900 p-6 rounded-xl shadow border border-slate-300 font-sans overflow-y-auto flex-1 text-xs">
+          <div class="border-b-2 border-slate-900 pb-3 mb-3 flex justify-between items-start">
+            <div>
+              <div class="text-xl font-black uppercase text-slate-950">QUOTATION CRAFT STUDIO</div>
+              <div class="text-xs text-slate-600 font-bold uppercase">Architectural Lighting Studio</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">Plot 12, Jubilee Hills, Hyderabad • GSTIN: 36AABCU9603R1ZM</div>
+            </div>
+            <div class="text-right">
+              <span class="bg-slate-950 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded">DELIVERY CHALLAN</span>
+              <div id="slip-num-header" class="text-sm font-black font-mono mt-1">#DC-2026-005</div>
+              <div class="text-[10px] text-slate-500">Ref Quote: #AL-3017-001</div>
+            </div>
+          </div>
+
+          <div class="bg-slate-50 border border-slate-200 p-3 rounded-lg mb-3">
+            <div class="font-bold text-slate-800" id="modal-phase-label">Phase 5: Final Fixtures & Balance</div>
+            <div class="text-slate-600 text-[11px] mt-0.5">Consignee: <strong>Mr. jahingir</strong> • Vehicle: <strong>TS 09 UA 8842</strong></div>
+          </div>
+
+          <table class="w-full text-left text-xs border border-slate-300 rounded mb-3">
+            <thead class="bg-slate-100 font-bold text-[10px] uppercase border-b border-slate-300">
+              <tr>
+                <th class="p-2">S.No</th>
+                <th class="p-2">Fixture Description</th>
+                <th class="p-2 text-center">Dispatched</th>
+                <th class="p-2 text-center">Site Check</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200" id="modal-items-body">
+              <tr>
+                <td class="p-2 font-mono">1</td>
+                <td class="p-2 font-bold text-slate-900">24V/400 DRIVER (400W)</td>
+                <td class="p-2 text-center font-black text-slate-950" id="modal-qty">5 Units</td>
+                <td class="p-2 text-center text-emerald-600 font-bold">✓ Verified</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="border-t border-slate-300 pt-3 flex justify-between text-[10px] text-slate-500">
+            <div>Authorized Signatory (Quotation Craft)</div>
+            <div>Client Signature: <strong>Mr. jahingir (✓ Signed)</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function setMode(mode) {
+      document.getElementById('view-grouped').classList.add('hidden');
+      document.getElementById('view-matrix').classList.add('hidden');
+      document.getElementById('view-flat').classList.add('hidden');
+
+      document.getElementById('btn-grouped').className = 'px-3.5 py-1.5 rounded-lg text-slate-300 hover:text-white transition-all';
+      document.getElementById('btn-matrix').className = 'px-3.5 py-1.5 rounded-lg text-slate-300 hover:text-white transition-all';
+      document.getElementById('btn-flat').className = 'px-3.5 py-1.5 rounded-lg text-slate-300 hover:text-white transition-all';
+
+      if (mode === 'grouped') {
+        document.getElementById('view-grouped').classList.remove('hidden');
+        document.getElementById('btn-grouped').className = 'px-3.5 py-1.5 rounded-lg bg-sky-600 text-white shadow transition-all';
+      } else if (mode === 'matrix') {
+        document.getElementById('view-matrix').classList.remove('hidden');
+        document.getElementById('btn-matrix').className = 'px-3.5 py-1.5 rounded-lg bg-sky-600 text-white shadow transition-all';
+      } else if (mode === 'flat') {
+        document.getElementById('view-flat').classList.remove('hidden');
+        document.getElementById('btn-flat').className = 'px-3.5 py-1.5 rounded-lg bg-sky-600 text-white shadow transition-all';
+      }
+    }
+
+    function toggleDetails(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('hidden');
+    }
+
+    function openDemoSlip(dcNum, phaseName, qty) {
+      document.getElementById('modal-dc-num').textContent = dcNum;
+      document.getElementById('slip-num-header').textContent = '#' + dcNum;
+      document.getElementById('modal-phase-label').textContent = phaseName;
+      document.getElementById('modal-qty').textContent = qty + ' Units';
+      document.getElementById('slip-modal').classList.remove('hidden');
+    }
+
+    function closeDemoSlip() {
+      document.getElementById('slip-modal').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>

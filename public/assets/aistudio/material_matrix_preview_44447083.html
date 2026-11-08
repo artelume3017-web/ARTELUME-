@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cumulative Material Matrix & + New Challan Preview</title>
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --card-bg: #121824;
+      --card-sub: #172030;
+      --border: #243144;
+      --border-sub: #1e293b;
+      --text-main: #ffffff;
+      --text-sub: #94a3b8;
+      --text-muted: #64748b;
+      --gold: #df9c20;
+      --gold-hover: #c98918;
+      --gold-bg: rgba(223, 156, 32, 0.12);
+      --gold-border: rgba(223, 156, 32, 0.4);
+      --emerald-text: #34d399;
+      --emerald-bg: rgba(16, 185, 129, 0.15);
+      --emerald-border: rgba(16, 185, 129, 0.35);
+      --sky-text: #38bdf8;
+      --sky-bg: rgba(56, 189, 248, 0.12);
+      --sky-border: rgba(56, 189, 248, 0.3);
+      --amber-text: #fbbf24;
+      --amber-bg: rgba(251, 191, 36, 0.15);
+      --table-header: #0f172a;
+      --table-row-hover: #1e293b;
+      --table-odd: #101622;
+      --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+    }
+
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --card-sub: #f1f5f9;
+      --border: #cbd5e1;
+      --border-sub: #e2e8f0;
+      --text-main: #0f172a;
+      --text-sub: #475569;
+      --text-muted: #64748b;
+      --gold: #b45309;
+      --gold-hover: #92400e;
+      --gold-bg: #fef3c7;
+      --gold-border: #f59e0b;
+      --emerald-text: #047857;
+      --emerald-bg: #d1fae5;
+      --emerald-border: #10b981;
+      --sky-text: #0369a1;
+      --sky-bg: #e0f2fe;
+      --sky-border: #0ea5e9;
+      --amber-text: #b45309;
+      --amber-bg: #fef3c7;
+      --table-header: #e2e8f0;
+      --table-row-hover: #f1f5f9;
+      --table-odd: #f8fafc;
+      --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      padding: 24px 16px;
+      line-height: 1.5;
+      transition: background-color 0.2s, color 0.2s;
+    }
+
+    .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .container { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+    /* Top Control Bar */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .theme-toggle-btn {
+      background: var(--card-sub);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .theme-toggle-btn:hover {
+      border-color: var(--gold);
+    }
+
+    /* Cards */
+    .panel {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .badge-gold { background: var(--gold); color: #000; font-weight: 800; }
+    .badge-green { background: var(--emerald-bg); color: var(--emerald-text); border: 1px solid var(--emerald-border); }
+    .badge-sky { background: var(--sky-bg); color: var(--sky-text); border: 1px solid var(--sky-border); }
+    .badge-amber { background: var(--amber-bg); color: var(--amber-text); }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none;
+      border: 1px solid transparent;
+      user-select: none;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-gold {
+      background: var(--gold);
+      color: #000000;
+      font-weight: 800;
+      box-shadow: 0 2px 8px rgba(223, 156, 32, 0.3);
+    }
+    .btn-gold:hover { background: var(--gold-hover); }
+
+    .btn-matrix {
+      background: var(--card-sub);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+    }
+    .btn-matrix:hover {
+      border-color: var(--gold);
+      background: var(--gold-bg);
+      color: var(--gold);
+    }
+
+    .btn-neutral {
+      background: var(--card-sub);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+    }
+    .btn-neutral:hover {
+      border-color: var(--border);
+      background: var(--table-row-hover);
+    }
+
+    .btn-danger {
+      background: transparent;
+      color: #ef4444;
+      border: 1px solid var(--border);
+      padding: 7px 10px;
+    }
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: #ef4444;
+    }
+
+    /* Dropdown Menus */
+    .menu-wrapper { position: relative; display: inline-block; }
+    .dropdown-popover {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: 6px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5);
+      min-width: 220px;
+      z-index: 50;
+      padding: 6px;
+      display: none;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .dropdown-popover.active { display: flex; }
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--text-main);
+      cursor: pointer;
+      text-decoration: none;
+      border: none;
+      background: transparent;
+      width: 100%;
+      text-align: left;
+    }
+    .dropdown-item:hover {
+      background: var(--card-sub);
+      color: var(--gold);
+    }
+
+    /* Table Styles */
+    .table-container {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--card-bg);
+      max-height: 480px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 12px;
+    }
+    th {
+      background: var(--table-header);
+      color: var(--text-sub);
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 11px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-sub);
+      color: var(--text-main);
+    }
+    tr:hover td { background: var(--table-row-hover); }
+    tfoot td {
+      background: var(--card-sub);
+      font-weight: 800;
+      border-top: 2px solid var(--border);
+      border-bottom: none;
+      position: sticky;
+      bottom: 0;
+      z-index: 10;
+    }
+
+    /* Modal Backdrop Simulator */
+    .modal-simulator {
+      background: var(--card-bg);
+      border: 2px solid var(--border);
+      border-radius: 20px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Metrics Grid */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .metric-card {
+      background: var(--card-sub);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .metric-label { font-size: 10px; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.05em; }
+    .metric-value { font-size: 22px; font-weight: 900; color: var(--text-main); font-family: ui-monospace, monospace; }
+
+    /* Dialog Popups */
+    .dialog-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 999;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .dialog-backdrop.active { display: flex; }
+    .dialog-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      max-width: 520px;
+      width: 100%;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Top Bar with Mode Switcher & Notice -->
+    <div class="top-bar">
+      <div>
+        <h2 style="font-size: 18px; font-weight: 900; display: flex; align-items: center; gap: 8px;">
+          <span>⚡</span>
+          <span>Cumulative Material Matrix + Quotation Studio</span>
+        </h2>
+        <div style="font-size: 12px; color: var(--text-sub);">
+          High-contrast interactive preview. Tested for light & dark mode viewing.
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <button class="theme-toggle-btn" onclick="toggleTheme()" id="themeBtn">
+          <span>☀️</span>
+          <span>Switch to Light Mode</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- SECTION 1: QUOTATION CARD (CLEAN TOOLBAR) -->
+    <div class="panel">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="badge badge-gold font-mono">#AL-3017-001</span>
+          <span style="font-size: 18px; font-weight: 900;">Mr. jahingir</span>
+          <span class="badge badge-green">✓ Delivered</span>
+        </div>
+        <div style="font-size: 13px; font-weight: 900; color: var(--gold);" class="font-mono">
+          Total: ₹2,63,376 (Settled)
+        </div>
+      </div>
+
+      <div style="font-size: 12px; color: var(--text-sub); display: flex; gap: 14px; flex-wrap: wrap;">
+        <span>📅 5-Nov-2026</span>
+        <span>📍 Jubilee Hills Villa</span>
+        <span>📦 2 Line Items (80 Units Total)</span>
+        <span style="color: var(--emerald-text); font-weight: 700;">✓ 5 Delivery Phases Dispatched (100%)</span>
+      </div>
+
+      <!-- Action Row: Side-by-Side Matrix and Payments Buttons -->
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--border-sub);">
+        
+        <!-- 1. Cumulative Material Matrix Button (Side-by-side) -->
+        <button class="btn btn-matrix" onclick="scrollToMatrix()" title="Open Cumulative Material Matrix">
+          <span style="font-size: 14px;">📊</span>
+          <span style="font-weight: 800;">Material Matrix</span>
+          <span class="font-mono" style="font-size: 10px; padding: 2px 6px; border-radius: 4px; background: var(--card-bg); border: 1px solid var(--border);">
+            80/80 Units • 5 Phases (100%)
+          </span>
+          <span style="color: var(--gold); font-weight: 900;">↗</span>
+        </button>
+
+        <!-- 2. Combined Payments Dropdown -->
+        <div class="menu-wrapper">
+          <button class="btn btn-neutral" onclick="toggleDropdown('paymentsMenu')">
+            <span>💳</span>
+            <span>Payments (2)</span>
+            <span style="font-size: 9px; opacity: 0.7;">▼</span>
+          </button>
+          <div class="dropdown-popover" id="paymentsMenu">
+            <button class="dropdown-item" onclick="alert('Open Record Payment modal')">
+              <span>💳</span>
+              <div>
+                <div style="font-weight: 700;">Record Payment</div>
+                <div style="font-size: 10px; color: var(--text-muted);">Add Cash, UPI, or Cheque</div>
+              </div>
+            </button>
+            <button class="dropdown-item" onclick="alert('Open View Receipts modal')">
+              <span>🧾</span>
+              <div>
+                <div style="font-weight: 700;">View Receipts (2)</div>
+                <div style="font-size: 10px; color: var(--text-muted);">Print or share official receipts</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. Combined Export Dropdown -->
+        <div class="menu-wrapper">
+          <button class="btn btn-neutral" onclick="toggleDropdown('exportMenu')">
+            <span>📤</span>
+            <span>Export</span>
+            <span style="font-size: 9px; opacity: 0.7;">▼</span>
+          </button>
+          <div class="dropdown-popover" id="exportMenu">
+            <button class="dropdown-item" onclick="alert('Generating official PDF proposal...')">
+              <span>🖨️</span>
+              <div>
+                <div style="font-weight: 700;">Print / Save PDF</div>
+                <div style="font-size: 10px; color: var(--text-muted);">Client-ready proposal document</div>
+              </div>
+            </button>
+            <button class="dropdown-item" onclick="alert('Exporting Excel workbook (.xlsx)...')">
+              <span>📗</span>
+              <div>
+                <div style="font-weight: 700;">Excel Spreadsheet</div>
+                <div style="font-size: 10px; color: var(--text-muted);">Formatted workbook with formulas</div>
+              </div>
+            </button>
+            <button class="dropdown-item" onclick="alert('Cloning quotation items to new draft...')">
+              <span>📋</span>
+              <div>
+                <div style="font-weight: 700;">Duplicate Quote</div>
+                <div style="font-size: 10px; color: var(--text-muted);">Clone line items to new draft</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- 4. Delete Action -->
+        <button class="btn btn-danger" title="Delete Quote">
+          <span>🗑️</span>
+        </button>
+
+      </div>
+    </div>
+
+
+    <!-- SECTION 2: CUMULATIVE MATERIAL MATRIX MODAL -->
+    <div class="modal-simulator" id="matrixSection">
+      
+      <!-- Modal Header -->
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--border);">
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span style="font-size: 24px;">📊</span>
+            <h1 style="font-size: 18px; font-weight: 900; letter-spacing: -0.02em;">
+              Cumulative Material Matrix (Everything in One Table)
+            </h1>
+            <span class="badge badge-gold font-mono">#AL-3017-001</span>
+          </div>
+          <div style="font-size: 12px; color: var(--text-sub); margin-top: 4px;">
+            Client: <strong style="color: var(--text-main);">Mr. jahingir</strong> • Site: 📍 Jubilee Hills Villa • 2 Fixtures (80 Units Ordered)
+          </div>
+        </div>
+
+        <!-- Header Actions: + New Challan prominently positioned -->
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button class="btn btn-gold" onclick="openCreateChallanDialog()" style="font-size: 13px;">
+            <span>🚚</span>
+            <span>+ New Challan (Phase 6)</span>
+          </button>
+          <button class="btn btn-neutral" onclick="window.print()">
+            <span>🖨️</span>
+            <span>Print Matrix</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Metrics Cards -->
+      <div class="metric-grid">
+        <div class="metric-card">
+          <div class="metric-label">Total Fixtures Ordered</div>
+          <div class="metric-value">80</div>
+          <div style="font-size: 11px; color: var(--text-sub);">Across 2 line items</div>
+        </div>
+        <div class="metric-card" style="border-left: 3px solid var(--emerald-text);">
+          <div class="metric-label" style="color: var(--emerald-text);">Total Dispatched</div>
+          <div class="metric-value" style="color: var(--emerald-text);">80</div>
+          <div style="font-size: 11px; color: var(--emerald-text);">Across 5 DC Phases</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Pending Dispatch</div>
+          <div class="metric-value">0</div>
+          <div style="font-size: 11px; color: var(--text-sub);">0 units remaining</div>
+        </div>
+        <div class="metric-card" style="border-left: 3px solid var(--gold);">
+          <div class="metric-label" style="color: var(--gold);">Dispatch Completion</div>
+          <div class="metric-value" style="color: var(--gold);">100%</div>
+          <div style="font-size: 11px; color: var(--emerald-text);">✓ All fixtures fulfilled</div>
+        </div>
+      </div>
+
+      <!-- The Cumulative Matrix Table -->
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 40px; text-align: center;">#</th>
+              <th style="min-width: 140px;">SKU / Code</th>
+              <th style="min-width: 220px;">Fixture Description</th>
+              <th style="text-align: center; background: var(--card-sub);">Ordered</th>
+
+              <!-- Dynamic DC Columns -->
+              <th style="text-align: center; color: var(--sky-text); min-width: 85px; border-left: 1px solid var(--border);">
+                <div>#DC-001</div>
+                <div style="font-size: 9px; color: var(--text-sub); text-transform: none; font-weight: 400;">Phase 1</div>
+              </th>
+              <th style="text-align: center; color: var(--sky-text); min-width: 85px; border-left: 1px solid var(--border);">
+                <div>#DC-002</div>
+                <div style="font-size: 9px; color: var(--text-sub); text-transform: none; font-weight: 400;">Phase 2</div>
+              </th>
+              <th style="text-align: center; color: var(--sky-text); min-width: 85px; border-left: 1px solid var(--border);">
+                <div>#DC-003</div>
+                <div style="font-size: 9px; color: var(--text-sub); text-transform: none; font-weight: 400;">Phase 3</div>
+              </th>
+              <th style="text-align: center; color: var(--sky-text); min-width: 85px; border-left: 1px solid var(--border);">
+                <div>#DC-004</div>
+                <div style="font-size: 9px; color: var(--text-sub); text-transform: none; font-weight: 400;">Phase 4</div>
+              </th>
+              <th style="text-align: center; color: var(--sky-text); min-width: 85px; border-left: 1px solid var(--border);">
+                <div>#DC-005</div>
+                <div style="font-size: 9px; color: var(--text-sub); text-transform: none; font-weight: 400;">Phase 5</div>
+              </th>
+
+              <!-- DIRECT + NEW DC COLUMN IN TABLE HEADER -->
+              <th style="text-align: center; min-width: 90px; border-left: 1px solid var(--border); background: var(--gold-bg);">
+                <button onclick="openCreateChallanDialog()" style="background: var(--gold); color: #000; border: none; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 900; cursor: pointer; display: flex; align-items: center; gap: 3px; margin: 0 auto;">
+                  <span>+</span>
+                  <span>New DC</span>
+                </button>
+              </th>
+
+              <th style="text-align: center; color: var(--emerald-text); border-left: 1px solid var(--border); background: var(--emerald-bg);">
+                Delivered
+              </th>
+              <th style="text-align: center; color: var(--amber-text); border-left: 1px solid var(--border); background: var(--amber-bg);">
+                Pending
+              </th>
+              <th style="text-align: center; border-left: 1px solid var(--border);">Status</th>
+            </tr>
+          </thead>
+          <tbody class="font-mono">
+            <tr>
+              <td style="text-align: center; color: var(--text-muted);">1</td>
+              <td style="font-weight: 900;">COB-12W-WARM</td>
+              <td style="font-family: sans-serif;">
+                <div style="font-weight: 800;">12W COB Downlight Recessed</div>
+                <div style="font-size: 10px; color: var(--text-sub);">⚡ 12W • 💡 3000K Warm White • 🎨 Deep Matt White</div>
+              </td>
+              <td style="text-align: center; font-weight: 900; background: var(--card-sub);">50</td>
+              <td style="text-align: center; color: var(--sky-text); border-left: 1px solid var(--border);">10</td>
+              <td style="text-align: center; color: var(--sky-text); border-left: 1px solid var(--border);">15</td>
+              <td style="text-align: center; color: var(--sky-text); border-left: 1px solid var(--border);">10</td>
+              <td style="text-align: center; color: var(--sky-text); border-left: 1px solid var(--border);">10</td>
+              <td style="text-align: center; color: var(--sky-text); border-left: 1px solid var(--border);">5</td>
+              
+              <!-- Direct + Add action cell in body -->
+              <td onclick="openCreateChallanDialog('COB-12W-WARM')" style="text-align: center; color: var(--gold); font-weight: 800; font-size: 11px; cursor: pointer; border-left: 1px solid var(--border); background: var(--gold-bg);" title="Click to dispatch in next phase">
+                + Add
+              </td>
+
+              <td style="text-align: center; font-weight: 900; color: var(--emerald-text); border-left: 1px solid var(--border); background: var(--emerald-bg);">50</td>
+              <td style="text-align: center; color: var(--text-muted); border-left: 1px solid var(--border);">0</td>
+              <td style="text-align: center; border-left: 1px solid var(--border); font-family: sans-serif;">
+                <span class="badge badge-green">✓ Complete</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="text-align: center; color: var(--text-muted);">2</td>
+              <td style="font-weight: 900;">STR-24V-CCT</td>
+              <td style="font-family: sans-serif;">
+                <div style="font-weight: 800;">Architectural LED Strip 24V COB</div>
+                <div style="font-size: 10px; color: var(--text-sub);">⚡ 14W/m • 💡 Tunable White • 🎨 IP65 Silicone</div>
+              </td>
+              <td style="text-align: center; font-weight: 900; background: var(--card-sub);">30</td>
+              <td style="text-align: center; color: var(--sky-text); border-left: 1px solid var(--border);">5</td>
+              <td style="text-align: center; color: var(--sky-text); border-left: 1px solid var(--border);">5</td>
+              <td style="text-align: center; color: var(--sky-text); border-left: 1px solid var(--border);">10</td>
+              <td style="text-align: center; color: var(--sky-text); border-left: 1px solid var(--border);">5</td>
+              <td style="text-align: center; color: var(--sky-text); border-left: 1px solid var(--border);">5</td>
+              
+              <!-- Direct + Add action cell in body -->
+              <td onclick="openCreateChallanDialog('STR-24V-CCT')" style="text-align: center; color: var(--gold); font-weight: 800; font-size: 11px; cursor: pointer; border-left: 1px solid var(--border); background: var(--gold-bg);" title="Click to dispatch in next phase">
+                + Add
+              </td>
+
+              <td style="text-align: center; font-weight: 900; color: var(--emerald-text); border-left: 1px solid var(--border); background: var(--emerald-bg);">30</td>
+              <td style="text-align: center; color: var(--text-muted); border-left: 1px solid var(--border);">0</td>
+              <td style="text-align: center; border-left: 1px solid var(--border); font-family: sans-serif;">
+                <span class="badge badge-green">✓ Complete</span>
+              </td>
+            </tr>
+          </tbody>
+          <tfoot class="font-mono">
+            <tr>
+              <td colspan="3" style="text-align: right; text-transform: uppercase; font-size: 11px; color: var(--text-sub);">
+                Total Quantities:
+              </td>
+              <td style="text-align: center; font-size: 13px; font-weight: 900; background: var(--table-header);">80</td>
+              <td style="text-align: center; color: var(--sky-text); border-left: 1px solid var(--border);">15</td>
+              <td style="text-align: center; color: var(--sky-text); border-left: 1px solid var(--border);">20</td>
+              <td style="text-align: center; color: var(--sky-text); border-left: 1px solid var(--border);">20</td>
+              <td style="text-align: center; color: var(--sky-text); border-left: 1px solid var(--border);">15</td>
+              <td style="text-align: center; color: var(--sky-text); border-left: 1px solid var(--border);">10</td>
+              
+              <td style="text-align: center; color: var(--gold); font-weight: 900; border-left: 1px solid var(--border); background: var(--gold-bg);">+</td>
+
+              <td style="text-align: center; color: var(--emerald-text); font-weight: 900; border-left: 1px solid var(--border); background: var(--emerald-bg);">80</td>
+              <td style="text-align: center; color: var(--text-muted); border-left: 1px solid var(--border);">0</td>
+              <td style="text-align: center; border-left: 1px solid var(--border); color: var(--emerald-text); font-weight: 900; font-family: sans-serif;">
+                ✓ 100% Complete
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- Linked Delivery Phases Timeline Bar with 1-Click PDF Download & New Challan Card -->
+      <div style="background: var(--card-sub); border: 1px solid var(--border); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <span style="font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-sub);">
+            Linked Delivery Challans & Quick PDF Downloads (5 Phases):
+          </span>
+          <span class="font-mono" style="font-size: 11px; color: var(--emerald-text);">
+            ✓ 1-Click PDF Save Available
+          </span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;">
+          
+          <!-- + Create New Challan Direct CTA Card -->
+          <button onclick="openCreateChallanDialog()" style="background: var(--gold-bg); border: 2px dashed var(--gold); border-radius: 12px; padding: 12px; display: flex; align-items: center; gap: 12px; cursor: pointer; text-align: left; transition: all 0.2s;" class="new-dc-card">
+            <div style="width: 38px; height: 38px; border-radius: 10px; background: var(--gold); color: #000; font-size: 20px; font-weight: 900; display: flex; align-items: center; justify-content: center; shrink-0: 0;">
+              +
+            </div>
+            <div>
+              <div style="font-weight: 900; font-size: 13px; color: var(--gold);">+ Create New Challan</div>
+              <div style="font-size: 10px; color: var(--text-sub);">Phase 6 • Dispatch Additional Items</div>
+            </div>
+          </button>
+
+          <!-- Phase 1 Card -->
+          <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span class="font-mono" style="font-weight: 800; font-size: 12px;">#DC-2026-001</span>
+                <span style="font-size: 10px; color: var(--text-sub);">Phase 1</span>
+              </div>
+              <div style="font-size: 11px; color: var(--text-sub); margin-top: 3px;">
+                📅 28-Oct-2026 • 🚚 TS09-EA-1122 • <strong style="color: var(--emerald-text);">15 units</strong>
+              </div>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <button class="btn btn-gold" style="padding: 5px 8px; font-size: 10px;" onclick="simulatePdfDownload('DC-2026-001')">
+                📄 PDF
+              </button>
+              <button class="btn btn-neutral" style="padding: 5px 8px; font-size: 10px;" onclick="alert('Viewing official thermal/slip view for #DC-2026-001')">
+                🖨️
+              </button>
+            </div>
+          </div>
+
+          <!-- Phase 2 Card -->
+          <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span class="font-mono" style="font-weight: 800; font-size: 12px;">#DC-2026-002</span>
+                <span style="font-size: 10px; color: var(--text-sub);">Phase 2</span>
+              </div>
+              <div style="font-size: 11px; color: var(--text-sub); margin-top: 3px;">
+                📅 30-Oct-2026 • 🚚 TS09-UB-4400 • <strong style="color: var(--emerald-text);">20 units</strong>
+              </div>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <button class="btn btn-gold" style="padding: 5px 8px; font-size: 10px;" onclick="simulatePdfDownload('DC-2026-002')">
+                📄 PDF
+              </button>
+              <button class="btn btn-neutral" style="padding: 5px 8px; font-size: 10px;" onclick="alert('Viewing official thermal/slip view for #DC-2026-002')">
+                🖨️
+              </button>
+            </div>
+          </div>
+
+          <!-- Phase 3 Card -->
+          <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span class="font-mono" style="font-weight: 800; font-size: 12px;">#DC-2026-003</span>
+                <span style="font-size: 10px; color: var(--text-sub);">Phase 3</span>
+              </div>
+              <div style="font-size: 11px; color: var(--text-sub); margin-top: 3px;">
+                📅 01-Nov-2026 • 🚚 TS09-EA-1122 • <strong style="color: var(--emerald-text);">20 units</strong>
+              </div>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <button class="btn btn-gold" style="padding: 5px 8px; font-size: 10px;" onclick="simulatePdfDownload('DC-2026-003')">
+                📄 PDF
+              </button>
+              <button class="btn btn-neutral" style="padding: 5px 8px; font-size: 10px;" onclick="alert('Viewing official thermal/slip view for #DC-2026-003')">
+                🖨️
+              </button>
+            </div>
+          </div>
+
+          <!-- Phase 4 Card -->
+          <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span class="font-mono" style="font-weight: 800; font-size: 12px;">#DC-2026-004</span>
+                <span style="font-size: 10px; color: var(--text-sub);">Phase 4</span>
+              </div>
+              <div style="font-size: 11px; color: var(--text-sub); margin-top: 3px;">
+                📅 03-Nov-2026 • 🚚 TS08-XZ-9090 • <strong style="color: var(--emerald-text);">15 units</strong>
+              </div>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <button class="btn btn-gold" style="padding: 5px 8px; font-size: 10px;" onclick="simulatePdfDownload('DC-2026-004')">
+                📄 PDF
+              </button>
+              <button class="btn btn-neutral" style="padding: 5px 8px; font-size: 10px;" onclick="alert('Viewing official thermal/slip view for #DC-2026-004')">
+                🖨️
+              </button>
+            </div>
+          </div>
+
+          <!-- Phase 5 Card -->
+          <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span class="font-mono" style="font-weight: 800; font-size: 12px;">#DC-2026-005</span>
+                <span style="font-size: 10px; color: var(--text-sub);">Phase 5 (Final)</span>
+              </div>
+              <div style="font-size: 11px; color: var(--text-sub); margin-top: 3px;">
+                📅 05-Nov-2026 • 🚚 TS09-UB-4400 • <strong style="color: var(--emerald-text);">10 units</strong>
+              </div>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <button class="btn btn-gold" style="padding: 5px 8px; font-size: 10px;" onclick="simulatePdfDownload('DC-2026-005')">
+                📄 PDF
+              </button>
+              <button class="btn btn-neutral" style="padding: 5px 8px; font-size: 10px;" onclick="alert('Viewing official thermal/slip view for #DC-2026-005')">
+                🖨️
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- SIMULATED + CREATE NEW CHALLAN MODAL -->
+    <div class="dialog-backdrop" id="createChallanDialog">
+      <div class="dialog-box">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 20px;">🚚</span>
+            <div style="font-weight: 900; font-size: 16px;">Create Delivery Challan — Phase 6</div>
+          </div>
+          <button onclick="closeCreateChallanDialog()" style="background: none; border: none; color: var(--text-sub); font-size: 16px; cursor: pointer;">✕</button>
+        </div>
+
+        <div style="font-size: 12px; color: var(--text-sub);">
+          Pre-linked to Quotation: <strong style="color: var(--gold);" class="font-mono">#AL-3017-001 (Mr. jahingir)</strong>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div>
+            <label style="font-size: 11px; font-weight: 700; color: var(--text-sub); text-transform: uppercase;">Phase / Dispatch Label</label>
+            <input type="text" value="Phase 6 — Final Touchup & Driver Spares" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: var(--card-sub); border: 1px solid var(--border); color: var(--text-main); font-size: 12px; margin-top: 4px;" readonly>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <label style="font-size: 11px; font-weight: 700; color: var(--text-sub); text-transform: uppercase;">Vehicle / Driver</label>
+              <input type="text" value="TS-09-UB-4400 (Ramesh)" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: var(--card-sub); border: 1px solid var(--border); color: var(--text-main); font-size: 12px; margin-top: 4px;" readonly>
+            </div>
+            <div>
+              <label style="font-size: 11px; font-weight: 700; color: var(--text-sub); text-transform: uppercase;">Dispatch Date</label>
+              <input type="text" value="06-Nov-2026" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: var(--card-sub); border: 1px solid var(--border); color: var(--text-main); font-size: 12px; margin-top: 4px;" readonly>
+            </div>
+          </div>
+
+          <div style="border-top: 1px solid var(--border-sub); padding-top: 8px; margin-top: 4px;">
+            <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-sub); margin-bottom: 6px;">
+              Items to Dispatch in this Challan:
+            </div>
+            <div style="background: var(--card-sub); border-radius: 8px; padding: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+              <div>
+                <strong id="selectedItemSku">COB-12W-WARM</strong>
+                <div style="font-size: 10px; color: var(--text-sub);">12W COB Downlight Recessed</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 11px; color: var(--text-sub);">Qty:</span>
+                <input type="number" value="5" style="width: 55px; padding: 4px 6px; border-radius: 6px; background: var(--card-bg); border: 1px solid var(--border); color: var(--text-main); text-align: center; font-weight: 800;">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--border); padding-top: 12px; margin-top: 6px;">
+          <button class="btn btn-neutral" onclick="closeCreateChallanDialog()">Cancel</button>
+          <button class="btn btn-gold" onclick="alert('✅ Challan created successfully! Added as Phase 6 to Material Matrix and Delivery Challans ledger.'); closeCreateChallanDialog();">
+            <span>🚚 Create & Dispatch Challan</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const btn = document.getElementById('themeBtn');
+      if (html.getAttribute('data-theme') === 'dark') {
+        html.setAttribute('data-theme', 'light');
+        btn.innerHTML = '<span>🌙</span><span>Switch to Dark Mode</span>';
+      } else {
+        html.setAttribute('data-theme', 'dark');
+        btn.innerHTML = '<span>☀️</span><span>Switch to Light Mode</span>';
+      }
+    }
+
+    function toggleDropdown(id) {
+      const target = document.getElementById(id);
+      const isVisible = target.classList.contains('active');
+      document.querySelectorAll('.dropdown-popover').forEach(el => el.classList.remove('active'));
+      if (!isVisible) {
+        target.classList.add('active');
+      }
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.menu-wrapper')) {
+        document.querySelectorAll('.dropdown-popover').forEach(el => el.classList.remove('active'));
+      }
+    });
+
+    function scrollToMatrix() {
+      document.getElementById('matrixSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function openCreateChallanDialog(sku) {
+      if (sku) {
+        document.getElementById('selectedItemSku').textContent = sku;
+      }
+      document.getElementById('createChallanDialog').classList.add('active');
+    }
+
+    function closeCreateChallanDialog() {
+      document.getElementById('createChallanDialog').classList.remove('active');
+    }
+
+    function simulatePdfDownload(dcNum) {
+      const btn = event.currentTarget;
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '⏳ Generating...';
+      btn.style.opacity = '0.7';
+      setTimeout(() => {
+        btn.innerHTML = '✓ Saved!';
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+          btn.style.opacity = '1';
+        }, 1500);
+      }, 700);
+    }
+  </script>
+</body>
+</html>
